@@ -194,3 +194,6 @@ roslaunch ldlidar ld14p.launch
 
 
 
+MAVLink：轻量级的通信协议，一些无人机硬件平台如Pixhawk、PX4、ArduPilot等就是使用MAVLink通讯，包含了许多无人机相关的信息和命令，例如无人机的状态、传感器数据、电池电量等。
+
+MAVROS：用于将ROS和MAVLink协议连接起来，以实现ROS与无人机之间的通信和控制。
