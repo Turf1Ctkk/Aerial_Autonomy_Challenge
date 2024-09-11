@@ -4,7 +4,7 @@
 
 #### HUST代码
 
-[DBLYBB/UAV_2023](DBLYBB/UAV_2023)
+[DBLYBB/UAV_2023](https://github.com/DBLYBB/UAV_2023)
 
 [ElluIFX/ANO_LX_FC](https://github.com/ElluIFX/ANO_LX_FC)
 
