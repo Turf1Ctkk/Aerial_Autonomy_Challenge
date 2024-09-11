@@ -1,6 +1,10 @@
-#### V5-nano
+#### V5-nano.pdf
 
 飞控说明书
+
+#### CUAV雷迅官方文档
+
+https://doc.cuav.net/zh-hans/
 
 #### HUST代码
 
