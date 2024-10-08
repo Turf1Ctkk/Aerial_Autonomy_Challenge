@@ -148,10 +148,11 @@ realsense-viewer
 #### **realsense-ros安装**
 
 ```bash
+mkdir -p realsense-ros/src/
+cd realsense-ros/src
 git clone -b 2.3.1 https://github.com/IntelRealSense/realsense-ros
 cd realsense-ros
-catkin_make -DCATKIN_ENABLE_TESTING=False -DCMAKE_BUILD_TYPE=Release
-catkin_make install
+catkin_make
 
 sudo gedit ~/.bashrc
 #加入语句
