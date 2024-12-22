@@ -1,2 +1,0 @@
-[[NO_CATEGORY]]
-No changes from the official 1.6.0.32 distribution
