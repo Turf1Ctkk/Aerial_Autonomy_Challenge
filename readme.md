@@ -2,9 +2,11 @@
 
 ---
 
-### References
+### Courses
 
-[HKUST-ELEC5660-Introduction-to-Aerial-Robotics](https://github.com/HKUST-Aerial-Robotics/HKUST-ELEC5660-Introduction-to-Aerial-Robotics)
+[HKUST-ELEC5660-Introduction-to-Aerial-Robotics (GitHub, 2026 New Update!)](https://github.com/HKUST-Aerial-Robotics/HKUST-ELEC5660-Introduction-to-Aerial-Robotics)
+
+[BUAA, ZJU-FAST course slides](https://pan.quark.cn/s/8857f2fcdb0a?pwd=7FCD)
 
 #### Projects
 
@@ -31,5 +33,3 @@
 AirSim + PX4 + ROS Simulation tutorial
 
 Update the onboard code
-
-Update hardware file

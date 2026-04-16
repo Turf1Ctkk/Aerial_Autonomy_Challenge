@@ -125,10 +125,11 @@ rostopic echo /mavros/state
 
 ### 1. 修改本机静态ip地址
 
+建议先使用Livox Viewer 2的UI界面连接雷达，将雷达的固定IP改成192.168.12.1XX（主要目的是与.1网段分开，防止Nomachine和ssh与雷达在同一网段）
 ```bash
 ifconfig
 # 查看本机的网口名称，假设为enxxx
-sudo ifconfig enxxx 192.168.1.50
+sudo ifconfig enxxx 192.168.12.50
 ```
 
 设置-网络：开启/选用被设置成静态ip地址的网口
@@ -143,7 +144,7 @@ mkdir build && cd build
 cmake .. && make -j
 sudo make install
 
-# 快速测试 需要将mid360_config.json中的本机ip改为192.168.1.50
+# 快速测试 需要将mid360_config.json中的本机ip改为192.168.12.50
 cd samples/livox_lidar_quick_start
 ./livox_lidar_quick_start ../../../samples/livox_lidar_quick_start/mid360_config.json
 # 无报错且一直在打印point cloud handle和Imu data callback即为正常
@@ -177,9 +178,9 @@ cd livox_ros_driver2
 	# 假设网口名称为enxxx
 	sudo apt-get install wireshark
 	sudo wireshark
-	# 点击enxxx，Source代表雷达IP地址，Destination代表本机接收网口（地址应为手动设置的192.168.1.50）
+	# 点击enxxx，Source代表雷达IP地址，Destination代表本机接收网口
 # 修改fast-lio/src/livox_ros_driver2/config/MID360_config.json
-# 将host_net_info中的4个IP都改为192.168.1.50，将lidar_configs中的ip字段改为查询到的Mid-360的IP地址
+# 将host_net_info中的4个IP都改为192.168.12.50，将lidar_configs中的ip字段改为查询到的Mid-360的IP地址
 
 # 运行测试
 cd fast-lio
