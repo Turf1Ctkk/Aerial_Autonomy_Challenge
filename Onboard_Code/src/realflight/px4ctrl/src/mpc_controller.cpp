@@ -451,29 +451,70 @@ void OMMPCControl::computeFlatInputwithHopfFibration(const Eigen::Vector3d &thr_
 											  Eigen::Quaterniond &att,
 											  Eigen::Vector3d &omg) const
 {
-	static Eigen::Vector3d omg_old(0.0, 0.0, 0.0);
-	Eigen::Vector3d abc = thr_acc.normalized();
-	double a = abc(0), b = abc(1), c = abc(2);
-	Eigen::Vector3d abc_dot = (thr_acc.dot(thr_acc) * Eigen::MatrixXd::Identity(3, 3) - thr_acc * thr_acc.transpose()) / thr_acc.norm() / thr_acc.squaredNorm() * jer;
-	double a_dot = abc_dot(0), b_dot = abc_dot(1), c_dot = abc_dot(2);
+	constexpr double kThrAccNormEps = 1.0e-3;
+	constexpr double kOnePlusCEps = 1.0e-4;
 
-	if (1.0 + c > 1e-3 && thr_acc.norm() > 0.1)
+	auto setFallbackOutput = [&]() {
+		if (att_est.coeffs().allFinite() && att_est.norm() > 1.0e-6)
+		{
+			att = att_est.normalized();
+		}
+		else
+		{
+			att.setIdentity();
+		}
+
+		double yawd_safe = std::isfinite(yawd) ? yawd : 0.0;
+		omg = Eigen::Vector3d(0.0, 0.0, yawd_safe);
+	};
+
+	if (!thr_acc.allFinite() || !jer.allFinite() || !std::isfinite(yaw) || !std::isfinite(yawd))
 	{
-		double norm = sqrt(2 * (1 + c));
-		Eigen::Quaterniond q((1 + c) / norm, -b / norm, a / norm, 0);
-		Eigen::Quaterniond q_yaw(cos(yaw / 2), 0, 0, sin(yaw / 2));
-		att = q * q_yaw;
-		double syaw = sin(yaw), cyaw = cos(yaw);
-		omg(0) = syaw * a_dot - cyaw * b_dot - (a * syaw - b * cyaw) * c_dot / (c + 1);
-		omg(1) = cyaw * a_dot + syaw * b_dot - (a * cyaw + b * syaw) * c_dot / (c + 1);
-		omg(2) = (b * a_dot - a * b_dot) / (1 + c) + yawd;
+		setFallbackOutput();
+		return;
 	}
-	else
+
+	double thr_norm = thr_acc.norm();
+	if (thr_norm < kThrAccNormEps)
 	{
-		omg = omg_old;
-		att = att_est;
+		setFallbackOutput();
+		return;
 	}
-	omg_old = omg;
+
+	Eigen::Vector3d abc = thr_acc / thr_norm;
+	double a = abc(0), b = abc(1), c = abc(2);
+	double one_plus_c = 1.0 + c;
+	if (one_plus_c < kOnePlusCEps)
+	{
+		setFallbackOutput();
+		return;
+	}
+
+	Eigen::Matrix3d projector = Eigen::Matrix3d::Identity() - abc * abc.transpose();
+	Eigen::Vector3d abc_dot = projector * jer / thr_norm;
+	if (!abc_dot.allFinite())
+	{
+		setFallbackOutput();
+		return;
+	}
+
+	double a_dot = abc_dot(0), b_dot = abc_dot(1), c_dot = abc_dot(2);
+	double norm = sqrt(2.0 * one_plus_c);
+	Eigen::Quaterniond q(one_plus_c / norm, -b / norm, a / norm, 0.0);
+	Eigen::Quaterniond q_yaw(cos(yaw / 2.0), 0.0, 0.0, sin(yaw / 2.0));
+	att = (q * q_yaw).normalized();
+
+	double syaw = sin(yaw), cyaw = cos(yaw);
+	double inv_one_plus_c = 1.0 / one_plus_c;
+	omg(0) = syaw * a_dot - cyaw * b_dot - (a * syaw - b * cyaw) * c_dot * inv_one_plus_c;
+	omg(1) = cyaw * a_dot + syaw * b_dot - (a * cyaw + b * syaw) * c_dot * inv_one_plus_c;
+	omg(2) = (b * a_dot - a * b_dot) * inv_one_plus_c + yawd;
+
+	if (!att.coeffs().allFinite() || !omg.allFinite())
+	{
+		setFallbackOutput();
+		return;
+	}
 }
 
 double OMMPCControl::angleDiff(double a, double b)
@@ -616,30 +657,40 @@ void OMMPCControl::setTextReference(const std::vector<Eigen::Vector3d> &quad_pos
 	}
 
 	const double t_step = param_.mpc.step_T;
+	if (t_step <= 1.0e-6)
+	{
+		ROS_ERROR("[px4ctrl] setTextReference: invalid mpc.step_T");
+		return;
+	}
+
 	Eigen::Quaterniond last_q = odom.q;
 	Eigen::Vector3d body_z = last_q.toRotationMatrix() * Eigen::Vector3d(0, 0, 1);
-	static Eigen::Vector3d last_des_acc = Eigen::Vector3d::Zero();
-	static Eigen::Vector3d last_des_jerk = Eigen::Vector3d::Zero();
-	Eigen::Vector3d last_acc = last_des_acc;
+	const int vel_size = static_cast<int>(quad_velocities.size());
 
 	for (int i = 0; i < kNstep; ++i)
 	{
 		Eigen::Vector3d vel_i = quad_velocities[i];
-		Eigen::Vector3d acc_i, jer_i;
+		Eigen::Vector3d acc_i = Eigen::Vector3d::Zero();
+		Eigen::Vector3d jer_i = Eigen::Vector3d::Zero();
 		if (i == 0)
 		{
-			acc_i = last_des_acc;
-			jer_i = last_des_jerk;
+			if (vel_size >= 2)
+			{
+				acc_i = (quad_velocities[1] - quad_velocities[0]) / t_step;
+				if (vel_size >= 3)
+				{
+					Eigen::Vector3d acc_next = (quad_velocities[2] - quad_velocities[1]) / t_step;
+					jer_i = (acc_next - acc_i) / t_step;
+				}
+			}
 		}
 		else
 		{
 			acc_i = (quad_velocities[i] - quad_velocities[i - 1]) / t_step;
-			jer_i = (acc_i - last_acc) / t_step;
-			last_acc = acc_i;
-			if (i == 1)
+			if (i + 1 < vel_size)
 			{
-				last_des_acc = acc_i;
-				last_des_jerk = jer_i;
+				Eigen::Vector3d acc_next = (quad_velocities[i + 1] - quad_velocities[i]) / t_step;
+				jer_i = (acc_next - acc_i) / t_step;
 			}
 		}
 
@@ -663,7 +714,7 @@ void OMMPCControl::setTextReference(const std::vector<Eigen::Vector3d> &quad_pos
 
 		Eigen::Quaterniond q;
 		Eigen::Vector3d omg;
-		computeFlatInputwithHopfFibration(des_acc_in_world, Eigen::Vector3d::Zero(), yaw_i, yaw_dot_i, last_q, q, omg);
+		computeFlatInputwithHopfFibration(des_acc_in_world, jer_i, yaw_i, yaw_dot_i, last_q, q, omg);
 		q.normalize();
 		last_q = q;
 

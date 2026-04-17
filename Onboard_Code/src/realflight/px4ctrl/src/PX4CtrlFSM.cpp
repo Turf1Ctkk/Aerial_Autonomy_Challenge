@@ -312,9 +312,17 @@ void PX4CtrlFSM::process()
 		if (delta_t > 0.2)
 		{
 			if (use_mpc)
+			{
 				mpc_controller.estimateThrustModel(imu_data.a, param);
+			}
 			else
+			{
 				linear_controller.estimateThrustModel(imu_data.a, param);
+				if (param.mpc.shadow_compute)
+				{
+					mpc_controller.estimateThrustModel(imu_data.a, param);
+				}
+			}
 		}
 	}
 	// STEP2: estimate thrust model
@@ -322,9 +330,17 @@ void PX4CtrlFSM::process()
 	{
 		// controller.estimateThrustModel(imu_data.a, bat_data.volt, param);
 		if (use_mpc)
+		{
 			mpc_controller.estimateThrustModel(imu_data.a, param);
+		}
 		else
+		{
 			linear_controller.estimateThrustModel(imu_data.a, param);
+			if (param.mpc.shadow_compute)
+			{
+				mpc_controller.estimateThrustModel(imu_data.a, param);
+			}
+		}
 
 	}
 
