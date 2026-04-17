@@ -4,38 +4,9 @@
 
 ros-noetic-full
 
-## MAVROS-PX4环境
+## MAVROS - PX4 
 
-包括但不限于以下依赖项：
-
-```bash
-sudo apt install -y \
-ninja-build \
-exiftool \
-python-argparse \
-python-empy \
-python-toml \
-python-numpy \
-python-yaml \
-python-dev \
-python-pip \
-ninja-build \
-protobuf-compiler \
-libeigen3-dev \
-genromfs
-
-pip install \
-pandas \
-jinja2 \
-pyserial \
-cerberus \
-pyulog \
-numpy \
-toml \
-pyquaternion
-```
-
-#### **MAVROS安装**：
+#### **MAVROS**：
 
 MAVLink：轻量级的通信协议，一些无人机硬件平台如Pixhawk、PX4、ArduPilot等就是使用MAVLink通讯，包含了许多无人机相关的信息和命令，例如无人机的状态、传感器数据、电池电量等。
 
@@ -47,7 +18,7 @@ cd /opt/ros/noetic/lib/mavros
 sudo ./install_geographiclib_datasets.sh
 ```
 
-**Clone PX4源码（目前使用Github上的最新版本，待确定统一的版本。传言有固件版本存在bug，且飞行效果有差别）**
+**Clone PX4源码**
 
 ```bash
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
@@ -97,7 +68,7 @@ roslaunch px4 posix_sitl.launch
 roslaunch px4 mavros_posix_sitl.launch
 ```
 
-**启动外部控制节点**
+**启动外部控制节点 (Optional)**
 
 ```bash
 mkdir -p mavros_px4_demo/src
@@ -311,7 +282,7 @@ esti_plane_threshold: 0.1        # default=0.1
 
 
 
-## RealSense SDK & realsense-ros
+## RealSense SDK & realsense-ros (If using VIO)
 
 版本统一：RealSense SDK: v2.48.0（新的版本不再支持T265）; realsense-ros: build 2.3.1
 
