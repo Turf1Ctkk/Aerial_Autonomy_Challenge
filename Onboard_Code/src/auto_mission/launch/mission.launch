@@ -1,0 +1,138 @@
+<launch>
+  <node pkg="auto_mission" type="mission_node" name="mission" output="screen">
+    <!-- 起飞延时，单位:秒 -->
+    <param name="takeoff_delay" value="10.0" />
+    
+    <!-- 航点到达参数 -->
+    <param name="position_threshold" value="0.1" />  <!-- 位置误差阈值(米) -->
+    <param name="velocity_threshold" value="0.1" />  <!-- 速度阈值(米/秒) -->
+    <param name="arrival_duration" value="2.0" />    <!-- 条件满足持续时间(秒) -->
+    <param name="waypoint_timeout" value="20.0" />   <!-- 航点超时时间(秒) -->
+    
+    <!-- 主航点数量 -->
+    <param name="waypoint_count" value="10" />
+    
+    <!-- 主航点1-5 (场地绝对坐标) -->
+    <param name="waypoints/0/x" value="0.5" />
+    <param name="waypoints/0/y" value="-3.5" />
+    <param name="waypoints/0/z" value="0.95" />
+    
+    <param name="waypoints/1/x" value="2.0" />
+    <param name="waypoints/1/y" value="-3.5" />
+    <param name="waypoints/1/z" value="0.95" />
+    
+    <param name="waypoints/2/x" value="3.0" />
+    <param name="waypoints/2/y" value="-3.5" />
+    <param name="waypoints/2/z" value="0.95" />
+
+    <param name="waypoints/3/x" value="3.0" />
+    <param name="waypoints/3/y" value="-1.8" />
+    <param name="waypoints/3/z" value="0.95" />
+
+    <!-- through A door -->
+    <param name="waypoints/4/x" value="3.0" />
+    <param name="waypoints/4/y" value="-0.5" />
+    <param name="waypoints/4/z" value="0.95" />
+
+    <!-- after grab -->
+    <param name="waypoints/5/x" value="3.5" />
+    <param name="waypoints/5/y" value="-0.5" />
+    <param name="waypoints/5/z" value="1.2" />
+
+    <param name="waypoints/6/x" value="3.0" />
+    <param name="waypoints/6/y" value="-0.5" />
+    <param name="waypoints/6/z" value="0.95" />
+    
+    <param name="waypoints/7/x" value="3.0" />
+    <param name="waypoints/7/y" value="-2.0" />
+    <param name="waypoints/7/z" value="0.95" />
+    
+    <param name="waypoints/8/x" value="3.0" />
+    <param name="waypoints/8/y" value="-3.2" />
+    <param name="waypoints/8/z" value="0.95" />
+
+    <!-- B range entry -->
+    <param name="waypoints/9/x" value="3.0" />
+    <param name="waypoints/9/y" value="-4.45" />
+    <param name="waypoints/9/z" value="0.95" />
+    
+    <!-- 第一次小范围搜索点数量 -->
+    <param name="search_count" value="3" />
+    
+    <!-- 第一次小范围搜索点 (场地绝对坐标) -->
+    <param name="search_points/0/x" value="4.5" />
+    <param name="search_points/0/y" value="-0.5" />
+    
+    <param name="search_points/1/x" value="4.0" />
+    <param name="search_points/1/y" value="-0.5" />
+    
+    <param name="search_points/2/x" value="3.5" />
+    <param name="search_points/2/y" value="-0.5" />
+    
+    <!-- 搜索高度和检测时间 -->
+    <param name="search_height" value="1.2" />
+    <param name="detection_time" value="2.0" />
+    
+    <!-- 第二次小范围搜索点数量 -->
+    <param name="search2_count" value="6" />
+    
+    <!-- 第二次小范围搜索点 (场地绝对坐标) -->
+    <!-- <param name="search2_points/0/x" value="0.5" />
+    <param name="search2_points/0/y" value="-4.5" />
+    
+    <param name="search2_points/1/x" value="0.5" />
+    <param name="search2_points/1/y" value="-5.5" />
+    
+    <param name="search2_points/2/x" value="1.0" />
+    <param name="search2_points/2/y" value="-5.5" />
+    
+    <param name="search2_points/3/x" value="1.0" />
+    <param name="search2_points/3/y" value="-4.5" /> -->
+    
+    <param name="search2_points/0/x" value="1.5" />
+    <param name="search2_points/0/y" value="-4.5" />
+    
+    <param name="search2_points/1/x" value="1.5" />
+    <param name="search2_points/1/y" value="-5.0" />
+    
+    <param name="search2_points/2/x" value="1.5" />
+    <param name="search2_points/2/y" value="-5.5" />
+    
+    <param name="search2_points/3/x" value="2.0" />
+    <param name="search2_points/3/y" value="-5.5" />
+    
+    <param name="search2_points/4/x" value="2.0" />
+    <param name="search2_points/4/y" value="-5.0" />
+    
+    <param name="search2_points/5/x" value="2.0" />
+    <param name="search2_points/5/y" value="-4.5" />
+    
+    <!-- <param name="search2_points/10/x" value="2.0" />
+    <param name="search2_points/10/y" value="-5.0" />
+    
+    <param name="search2_points/11/x" value="2.0" />
+    <param name="search2_points/11/y" value="-4.5" /> -->
+
+    <!-- 抓球和放球控制 -->
+    <param name="use_ball_grab" value="true" />
+    <param name="use_ball_drop" value="true" />
+    
+    <!-- 小球相对于目标的偏移 -->
+    <param name="ball_to_target/x" value="0.5" />  <!-- 右手定则: x = -0.5米 -->
+    <param name="ball_to_target/y" value="0.0" />   <!-- 右手定则: y = 0.0米 -->
+    <param name="ball_to_target/z" value="1.03" />  <!-- 右手定则: z = 1.03米 -->
+    
+    <!-- 固定抓取偏移量 -->
+    <param name="fixed_grab_offset/x" value="0.016" /> <!-- 1.6厘米 -->
+    <param name="fixed_grab_offset/y" value="0.0" />   <!-- 0厘米 -->
+    <param name="fixed_grab_offset/z" value="0.015" />  <!-- 5厘米 -->
+    
+    <!-- 放球相对于目标的偏移 -->
+    <param name="drop_to_target/x" value="-0.5" />  <!-- 投放区偏移: x = 0.5米 -->
+    <param name="drop_to_target/y" value="0.0" />  <!-- 投放区偏移: y = 0.0米 -->
+    <param name="drop_to_target/z" value="1.0" />  <!-- 投放区偏移: z = 0.4米 -->
+    
+    <!-- 夹爪串口设置 -->
+    <param name="gripper_serial_port" value="/dev/ttyUSB0" />
+  </node>
+</launch>

@@ -5,7 +5,7 @@
 			
 			<remap from="~odom" to="/Odom_high_freq" />
 
-		<remap from="~cmd" to="/position_cmd" />
+		<remap from="~cmd" to="/setpoints_cmd" />
 
         <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
 	</node>

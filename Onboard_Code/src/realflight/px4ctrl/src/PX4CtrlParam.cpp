@@ -12,12 +12,6 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "gain/Kv0", gain.Kv0);
 	read_essential_param(nh, "gain/Kv1", gain.Kv1);
 	read_essential_param(nh, "gain/Kv2", gain.Kv2);
-	read_essential_param(nh, "gain/Kvi0", gain.Kvi0);
-	read_essential_param(nh, "gain/Kvi1", gain.Kvi1);
-	read_essential_param(nh, "gain/Kvi2", gain.Kvi2);
-	read_essential_param(nh, "gain/KAngR", gain.KAngR);
-	read_essential_param(nh, "gain/KAngP", gain.KAngP);
-	read_essential_param(nh, "gain/KAngY", gain.KAngY);
 
 	read_essential_param(nh, "rotor_drag/x", rt_drag.x);
 	read_essential_param(nh, "rotor_drag/y", rt_drag.y);
@@ -30,14 +24,12 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "msg_timeout/imu", msg_timeout.imu);
 	read_essential_param(nh, "msg_timeout/bat", msg_timeout.bat);
 
-	read_essential_param(nh, "pose_solver", pose_solver);
+	read_param_or_default(nh, "controller_type", controller_type, 0);
 	read_essential_param(nh, "mass", mass);
 	read_essential_param(nh, "gra", gra);
 	read_essential_param(nh, "ctrl_freq_max", ctrl_freq_max);
 	read_essential_param(nh, "use_bodyrate_ctrl", use_bodyrate_ctrl);
 	read_essential_param(nh, "max_manual_vel", max_manual_vel);
-	read_essential_param(nh, "max_angle", max_angle);
-	read_essential_param(nh, "low_voltage", low_voltage);
 
 	read_essential_param(nh, "rc_reverse/roll", rc_reverse.roll);
 	read_essential_param(nh, "rc_reverse/pitch", rc_reverse.pitch);
@@ -56,9 +48,27 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "thrust_model/K3", thr_map.K3);
 	read_essential_param(nh, "thrust_model/accurate_thrust_model", thr_map.accurate_thrust_model);
 	read_essential_param(nh, "thrust_model/hover_percentage", thr_map.hover_percentage);
-	
 
-	max_angle /= (180.0 / M_PI);
+	read_param_or_default(nh, "mpc/step_T", mpc.step_T, 0.01);
+	read_param_or_default(nh, "mpc/hover_percentage", mpc.hover_percentage, thr_map.hover_percentage);
+	read_param_or_default(nh, "mpc/Q_pos_xy", mpc.Q_pos_xy, 1000.0);
+	read_param_or_default(nh, "mpc/Q_pos_z", mpc.Q_pos_z, 800.0);
+	read_param_or_default(nh, "mpc/Q_velocity", mpc.Q_velocity, 20.0);
+	read_param_or_default(nh, "mpc/Q_attitude_rp", mpc.Q_attitude_rp, 40.0);
+	read_param_or_default(nh, "mpc/Q_attitude_yaw", mpc.Q_attitude_yaw, 40.0);
+	read_param_or_default(nh, "mpc/R_thrust", mpc.R_thrust, 0.5);
+	read_param_or_default(nh, "mpc/R_pitchroll", mpc.R_pitchroll, 1.2);
+	read_param_or_default(nh, "mpc/R_yaw", mpc.R_yaw, 0.6);
+	read_param_or_default(nh, "mpc/state_cost_exponential", mpc.state_cost_exponential, 0.5);
+	read_param_or_default(nh, "mpc/input_cost_exponential", mpc.input_cost_exponential, 0.5);
+	read_param_or_default(nh, "mpc/max_bodyrate_xy", mpc.max_bodyrate_xy, 6.0);
+	read_param_or_default(nh, "mpc/max_bodyrate_z", mpc.max_bodyrate_z, 4.0);
+	read_param_or_default(nh, "mpc/min_thrust", mpc.min_thrust, 1.0);
+	read_param_or_default(nh, "mpc/max_thrust", mpc.max_thrust, 30.0);
+	read_param_or_default(nh, "mpc/use_fix_yaw", mpc.use_fix_yaw, true);
+	read_param_or_default(nh, "mpc/use_polytraj_direct", mpc.use_polytraj_direct, false);
+	read_param_or_default(nh, "mpc/shadow_compute", mpc.shadow_compute, false);
+	read_param_or_default(nh, "mpc/polytraj_topic", mpc.polytraj_topic, std::string("/drone_0_planning/trajectory"));
 
 	if ( takeoff_land.enable_auto_arm && !takeoff_land.enable )
 	{
@@ -74,6 +84,12 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	if ( thr_map.print_val )
 	{
 		ROS_WARN("You should disable \"print_value\" if you are in regular usage.");
+	}
+
+	if (controller_type == 1 && !use_bodyrate_ctrl)
+	{
+		use_bodyrate_ctrl = true;
+		ROS_WARN("[px4ctrl] controller_type=1 (OM-MPC) requires bodyrate control. Force set use_bodyrate_ctrl=true.");
 	}
 };
 

@@ -1,15 +1,9 @@
-#########################################################################
-# ⭐⭐⭐  Set parameters carefully for satisfied performance!   ⭐⭐⭐ #
-#########################################################################
-
-mass        : 2.0 # kg 
-gra         : 9.81 
-pose_solver : 1     # 0:From ZhepeiWang (drag & less singular) 1:From ZhepeiWang, 2:From rotor-drag    
+mass        : 2.165 # kg 
+gra         : 9.92 
+controller_type: 0  # 0: linear controller, 1: on-manifold MPC
 ctrl_freq_max   : 100.0
 use_bodyrate_ctrl: false
 max_manual_vel: 0.8
-max_angle: 30  # Attitude angle limit in degree. A negative value means no limit.
-low_voltage: 13.2 # 4S battery
 
 rc_reverse: # *
     roll: false
@@ -21,8 +15,8 @@ auto_takeoff_land:
     enable: true
     enable_auto_arm: true
     no_RC: false
-    takeoff_height: 0.5 # m
-    takeoff_land_speed: 0.25 # m/s
+    takeoff_height: 1.00 # m
+    takeoff_land_speed: 0.3 # m/s
 
 thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(Unit:N): F=K1*Voltage^K2*(K3*u^2+(1-K3)*u). 
     print_value: false # display the value of “thr_scale_compensate” or “hover_percentage” during thrust model estimating.
@@ -32,27 +26,19 @@ thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(
     K2: 1.6942 # Needs precise calibration!
     K3: 0.6786 # Needs precise calibration! K3 equals THR_MDL_FAC in https://docs.px4.io/master/en/config_mc/pid_tuning_guide_multicopter.html.
     # approximate thrust mapping parameters
-    hover_percentage: 0.51 # Thrust percentage in Stabilize/Arco mode # *
+    hover_percentage: 0.24  # Thrust percentage in Stabilize/Arco mode # *
 
 gain: 
     # Cascade PID controller. Recommend to read the code.
-    Kp0: 1.5
-    Kp1: 1.5 
-    Kp2: 1.5
-    Kv0: 1.5
-    Kv1: 1.5
-    Kv2: 1.5
-    # ↓↓↓ No use now --
-    Kvi0: 0.0
-    Kvi1: 0.0
-    Kvi2: 0.0
-    Kvd0: 0.0
-    Kvd1: 0.0
-    Kvd2: 0.0
-    # ↓↓↓ Only used in rate control mode.
-    KAngR: 20.0
-    KAngP: 20.0
-    KAngY: 20.0
+    #Kp0: 5.8
+    #Kp1: 5.0 
+    #Kp2: 5.0
+    Kp0: 5.4
+    Kp1: 5.4 
+    Kp2: 5.3
+    Kv0: 2.1
+    Kv1: 2.1
+    Kv2: 2.7
 
 rotor_drag:  
     x: 0.0  # The reduced acceleration on each axis caused by rotor drag. Unit:(m*s^-2)/(m*s^-1).
@@ -66,3 +52,25 @@ msg_timeout:
     cmd:  0.5
     imu:  0.5
     bat:  0.5
+
+mpc:
+    step_T: 0.01
+    hover_percentage: 0.24
+    Q_pos_xy: 1000.0
+    Q_pos_z: 800.0
+    Q_velocity: 20.0
+    Q_attitude_rp: 40.0
+    Q_attitude_yaw: 40.0
+    R_thrust: 0.5
+    R_pitchroll: 1.2
+    R_yaw: 0.6
+    state_cost_exponential: 0.5
+    input_cost_exponential: 0.5
+    max_bodyrate_xy: 6.0
+    max_bodyrate_z: 4.0
+    min_thrust: 2.0
+    max_thrust: 35.0
+    use_fix_yaw: true
+    use_polytraj_direct: true
+    shadow_compute: false
+    polytraj_topic: "/drone_0_planning/trajectory"

@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include "PX4CtrlFSM.h"
 #include <signal.h>
+#include <traj_utils/PolyTraj.h>
 
 void mySigintHandler(int sig)
 {
@@ -19,9 +20,9 @@ int main(int argc, char *argv[])
     Parameter_t param;
     param.config_from_ros_handle(nh);
 
-    // Controller controller(param);
-    LinearControl controller(param);
-    PX4CtrlFSM fsm(param, controller);
+    LinearControl linear_controller(param);
+    OMMPCControl mpc_controller(param);
+    PX4CtrlFSM fsm(param, linear_controller, mpc_controller);
 
     ros::Subscriber state_sub =
         nh.subscribe<mavros_msgs::State>("/mavros/state",
@@ -46,6 +47,17 @@ int main(int argc, char *argv[])
                                                       boost::bind(&Command_Data_t::feed, &fsm.cmd_data, _1),
                                                       ros::VoidConstPtr(),
                                                       ros::TransportHints().tcpNoDelay());
+
+    ros::Subscriber mpc_traj_sub;
+    if (param.controller_type == 1 && param.mpc.use_polytraj_direct)
+    {
+        mpc_traj_sub = nh.subscribe<traj_utils::PolyTraj>(param.mpc.polytraj_topic,
+                                                          100,
+                                                          boost::bind(&OMMPCControl::feedTrajectory, &mpc_controller, _1),
+                                                          ros::VoidConstPtr(),
+                                                          ros::TransportHints().tcpNoDelay());
+        ROS_INFO("[PX4CTRL] OM-MPC direct PolyTraj mode enabled, topic=%s", param.mpc.polytraj_topic.c_str());
+    }
 
     ros::Subscriber imu_sub =
         nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", // Note: do NOT change it to /mavros/imu/data_raw !!!
@@ -80,6 +92,7 @@ int main(int argc, char *argv[])
     fsm.traj_start_trigger_pub = nh.advertise<geometry_msgs::PoseStamped>("/traj_start_trigger", 10);
 
     fsm.debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl", 10); // debug
+    fsm.mpc_shadow_debug_pub = nh.advertise<quadrotor_msgs::Px4ctrlDebug>("/debugPx4ctrl_mpc_shadow", 10);
 
     fsm.set_FCU_mode_srv = nh.serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
     fsm.arming_client_srv = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");

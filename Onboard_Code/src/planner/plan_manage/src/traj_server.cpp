@@ -3,14 +3,14 @@
 #include "traj_utils/Bspline.h"
 #include "quadrotor_msgs/PositionCommand.h"
 #include "std_msgs/Empty.h"
+#include "std_msgs/Float32.h"
 #include "visualization_msgs/Marker.h"
 #include <ros/ros.h>
+#include <atomic>
+#include <functional>
 
 ros::Publisher pos_cmd_pub;
-
 quadrotor_msgs::PositionCommand cmd;
-double pos_gain[3] = {0, 0, 0};
-double vel_gain[3] = {0, 0, 0};
 
 using ego_planner::UniformBspline;
 
@@ -21,8 +21,32 @@ ros::Time start_time_;
 int traj_id_;
 
 // yaw control
-double last_yaw_, last_yaw_dot_;
+double last_yaw_ = 0.0;
+double last_yaw_dot_ = 0.0;
 double time_forward_;
+
+// External yaw control
+ros::Subscriber ext_yaw_sub;
+double external_yaw_target_ = 0.0;
+bool has_external_yaw_ = false;
+const double MAX_YAW_RATE = 0.54;      // 90 deg/s (1.57 rad/s)
+const double YAW_SMOOTH_FACTOR = 0.5;  // Smoothing factor
+
+// command send/stop control
+std::atomic<bool> enable_control_{true};
+
+class TrajControl {
+public:
+    static void enableCallback(const std_msgs::Empty::ConstPtr&) {
+        enable_control_.store(true);
+        ROS_WARN("[TrajServer] Control ENABLED");
+    }
+
+    static void stopCallback(const std_msgs::Empty::ConstPtr&) {
+        enable_control_.store(false); 
+        ROS_WARN("[TrajServer] Control DISABLED");
+    }
+};
 
 void bsplineCallback(traj_utils::BsplineConstPtr msg)
 {
@@ -71,93 +95,135 @@ void bsplineCallback(traj_utils::BsplineConstPtr msg)
 std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros::Time &time_now, ros::Time &time_last)
 {
   constexpr double PI = 3.1415926;
-  constexpr double YAW_DOT_MAX_PER_SEC = PI;
+  // constexpr double YAW_DOT_MAX_PER_SEC = PI;
   // constexpr double YAW_DOT_DOT_MAX_PER_SEC = PI;
   std::pair<double, double> yaw_yawdot(0, 0);
-  double yaw = 0;
-  double yawdot = 0;
+  
+  if (has_external_yaw_) {
+    // External yaw control mode
+    double dt = (time_now - time_last).toSec();
+    dt = std::max(dt, 0.001);  // Avoid division by zero
 
-  Eigen::Vector3d dir = t_cur + time_forward_ <= traj_duration_ ? traj_[0].evaluateDeBoorT(t_cur + time_forward_) - pos : traj_[0].evaluateDeBoorT(traj_duration_) - pos;
-  double yaw_temp = dir.norm() > 0.1 ? atan2(dir(1), dir(0)) : last_yaw_;
-  double max_yaw_change = YAW_DOT_MAX_PER_SEC * (time_now - time_last).toSec();
-  if (yaw_temp - last_yaw_ > PI)
-  {
-    if (yaw_temp - last_yaw_ - 2 * PI < -max_yaw_change)
-    {
-      yaw = last_yaw_ - max_yaw_change;
-      if (yaw < -PI)
-        yaw += 2 * PI;
+    // Calculate shortest path error
+    double error = external_yaw_target_ - last_yaw_;
+    if (error > PI) error -= 2 * PI;
+    else if (error < -PI) error += 2 * PI;
 
-      yawdot = -YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
-      yaw = yaw_temp;
-      if (yaw - last_yaw_ > PI)
-        yawdot = -YAW_DOT_MAX_PER_SEC;
-      else
-        yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
-    }
+    // Rate limiting
+    double desired_yaw_dot = error / dt;
+    desired_yaw_dot = std::max(-MAX_YAW_RATE, std::min(MAX_YAW_RATE, desired_yaw_dot));
+
+    // Apply smoothing
+    last_yaw_dot_ = YAW_SMOOTH_FACTOR * desired_yaw_dot + 
+                   (1 - YAW_SMOOTH_FACTOR) * last_yaw_dot_;
+
+    // Update yaw
+    last_yaw_ += last_yaw_dot_ * dt;
+
+    // Normalize yaw
+    if (last_yaw_ > PI) last_yaw_ -= 2 * PI;
+    else if (last_yaw_ < -PI) last_yaw_ += 2 * PI;
+
+    yaw_yawdot.first = last_yaw_;
+    yaw_yawdot.second = last_yaw_dot_;
   }
-  else if (yaw_temp - last_yaw_ < -PI)
-  {
-    if (yaw_temp - last_yaw_ + 2 * PI > max_yaw_change)
-    {
-      yaw = last_yaw_ + max_yaw_change;
-      if (yaw > PI)
-        yaw -= 2 * PI;
+  else {
+    yaw_yawdot.first = 0.0;
+    yaw_yawdot.second = 0.0;
+    // double yaw = 0;
+  // double yawdot = 0;
 
-      yawdot = YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
-      yaw = yaw_temp;
-      if (yaw - last_yaw_ < -PI)
-        yawdot = YAW_DOT_MAX_PER_SEC;
-      else
-        yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
-    }
+  // Eigen::Vector3d dir = t_cur + time_forward_ <= traj_duration_ ? traj_[0].evaluateDeBoorT(t_cur + time_forward_) - pos : traj_[0].evaluateDeBoorT(traj_duration_) - pos;
+  // double yaw_temp = dir.norm() > 0.1 ? atan2(dir(1), dir(0)) : last_yaw_;
+  // double max_yaw_change = YAW_DOT_MAX_PER_SEC * (time_now - time_last).toSec();
+  // if (yaw_temp - last_yaw_ > PI)
+  // {
+  //   if (yaw_temp - last_yaw_ - 2 * PI < -max_yaw_change)
+  //   {
+  //     yaw = last_yaw_ - max_yaw_change;
+  //     if (yaw < -PI)
+  //       yaw += 2 * PI;
+
+  //     yawdot = -YAW_DOT_MAX_PER_SEC;
+  //   }
+  //   else
+  //   {
+  //     yaw = yaw_temp;
+  //     if (yaw - last_yaw_ > PI)
+  //       yawdot = -YAW_DOT_MAX_PER_SEC;
+  //     else
+  //       yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
+  //   }
+  // }
+  // else if (yaw_temp - last_yaw_ < -PI)
+  // {
+  //   if (yaw_temp - last_yaw_ + 2 * PI > max_yaw_change)
+  //   {
+  //     yaw = last_yaw_ + max_yaw_change;
+  //     if (yaw > PI)
+  //       yaw -= 2 * PI;
+
+  //     yawdot = YAW_DOT_MAX_PER_SEC;
+  //   }
+  //   else
+  //   {
+  //     yaw = yaw_temp;
+  //     if (yaw - last_yaw_ < -PI)
+  //       yawdot = YAW_DOT_MAX_PER_SEC;
+  //     else
+  //       yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
+  //   }
+  // }
+  // else
+  // {
+  //   if (yaw_temp - last_yaw_ < -max_yaw_change)
+  //   {
+  //     yaw = last_yaw_ - max_yaw_change;
+  //     if (yaw < -PI)
+  //       yaw += 2 * PI;
+
+  //     yawdot = -YAW_DOT_MAX_PER_SEC;
+  //   }
+  //   else if (yaw_temp - last_yaw_ > max_yaw_change)
+  //   {
+  //     yaw = last_yaw_ + max_yaw_change;
+  //     if (yaw > PI)
+  //       yaw -= 2 * PI;
+
+  //     yawdot = YAW_DOT_MAX_PER_SEC;
+  //   }
+  //   else
+  //   {
+  //     yaw = yaw_temp;
+  //     if (yaw - last_yaw_ > PI)
+  //       yawdot = -YAW_DOT_MAX_PER_SEC;
+  //     else if (yaw - last_yaw_ < -PI)
+  //       yawdot = YAW_DOT_MAX_PER_SEC;
+  //     else
+  //       yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
+  //   }
+  // }
+
+  // if (fabs(yaw - last_yaw_) <= max_yaw_change)
+  //   yaw = 0.5 * last_yaw_ + 0.5 * yaw; // nieve LPF
+  // yawdot = 0.5 * last_yaw_dot_ + 0.5 * yawdot;
+  // last_yaw_ = yaw;
+  // last_yaw_dot_ = yawdot;
+
+  // yaw_yawdot.first = yaw;
+  // yaw_yawdot.second = yawdot;
   }
-  else
-  {
-    if (yaw_temp - last_yaw_ < -max_yaw_change)
-    {
-      yaw = last_yaw_ - max_yaw_change;
-      if (yaw < -PI)
-        yaw += 2 * PI;
-
-      yawdot = -YAW_DOT_MAX_PER_SEC;
-    }
-    else if (yaw_temp - last_yaw_ > max_yaw_change)
-    {
-      yaw = last_yaw_ + max_yaw_change;
-      if (yaw > PI)
-        yaw -= 2 * PI;
-
-      yawdot = YAW_DOT_MAX_PER_SEC;
-    }
-    else
-    {
-      yaw = yaw_temp;
-      if (yaw - last_yaw_ > PI)
-        yawdot = -YAW_DOT_MAX_PER_SEC;
-      else if (yaw - last_yaw_ < -PI)
-        yawdot = YAW_DOT_MAX_PER_SEC;
-      else
-        yawdot = (yaw_temp - last_yaw_) / (time_now - time_last).toSec();
-    }
-  }
-
-  if (fabs(yaw - last_yaw_) <= max_yaw_change)
-    yaw = 0.5 * last_yaw_ + 0.5 * yaw; // nieve LPF
-  yawdot = 0.5 * last_yaw_dot_ + 0.5 * yawdot;
-  last_yaw_ = yaw;
-  last_yaw_dot_ = yawdot;
-
-  yaw_yawdot.first = yaw;
-  yaw_yawdot.second = yawdot;
-
+  
   return yaw_yawdot;
+}
+
+void extYawCallback(const std_msgs::Float32::ConstPtr& msg) {
+  external_yaw_target_ = msg->data;
+  has_external_yaw_ = true;
+
+  // Normalize yaw angle to [-π, π]
+  while (external_yaw_target_ > M_PI) external_yaw_target_ -= 2 * M_PI;
+  while (external_yaw_target_ < -M_PI) external_yaw_target_ += 2 * M_PI;
 }
 
 void cmdCallback(const ros::TimerEvent &e)
@@ -165,7 +231,10 @@ void cmdCallback(const ros::TimerEvent &e)
   /* no publishing before receive traj_ */
   if (!receive_traj_)
     return;
-
+  
+  if (!enable_control_.load()) {
+    return;
+  }
   ros::Time time_now = ros::Time::now();
   double t_cur = (time_now - start_time_).toSec();
 
@@ -236,23 +305,37 @@ int main(int argc, char **argv)
   ros::NodeHandle nh("~");
 
   ros::Subscriber bspline_sub = nh.subscribe("planning/bspline", 10, bsplineCallback);
+  ext_yaw_sub = nh.subscribe("/external_yaw", 1, extYawCallback);
+  
+  auto enable_sub = nh.subscribe<std_msgs::Empty>(
+        "/traj_server/enable_cmd", 1,
+        [](const std_msgs::Empty::ConstPtr& msg) {
+            TrajControl::enableCallback(msg);
+        },
+        ros::VoidConstPtr(),
+        ros::TransportHints().tcpNoDelay()
+    );
+
+    auto stop_sub = nh.subscribe<std_msgs::Empty>(
+        "/traj_server/stop_cmd", 1,
+        [](const std_msgs::Empty::ConstPtr& msg) {
+            TrajControl::stopCallback(msg);
+        },
+        ros::VoidConstPtr(),
+        ros::TransportHints().tcpNoDelay()
+    );
+
 
   pos_cmd_pub = nh.advertise<quadrotor_msgs::PositionCommand>("/position_cmd", 50);
 
   ros::Timer cmd_timer = nh.createTimer(ros::Duration(0.01), cmdCallback);
 
-  /* control parameter */
-  cmd.kx[0] = pos_gain[0];
-  cmd.kx[1] = pos_gain[1];
-  cmd.kx[2] = pos_gain[2];
-
-  cmd.kv[0] = vel_gain[0];
-  cmd.kv[1] = vel_gain[1];
-  cmd.kv[2] = vel_gain[2];
 
   nh.param("traj_server/time_forward", time_forward_, -1.0);
   last_yaw_ = 0.0;
   last_yaw_dot_ = 0.0;
+  external_yaw_target_ = 0.0;
+  has_external_yaw_ = false;
 
   ros::Duration(1.0).sleep();
 

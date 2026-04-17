@@ -61,7 +61,7 @@
     <!-- planning fsm -->
     <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
     <param name="fsm/thresh_replan_time" value="1.0" type="double"/>
-    <param name="fsm/thresh_no_replan_meter" value="1.0" type="double"/>
+    <param name="fsm/thresh_no_replan_meter" value="0.15" type="double"/> <!--1.0-->
     <param name="fsm/planning_horizon" value="$(arg planning_horizon)" type="double"/> <!--always set to 1.5 times grater than sensing horizen-->
     <param name="fsm/planning_horizen_time" value="3" type="double"/>
     <param name="fsm/emergency_time" value="1.0" type="double"/>
@@ -85,16 +85,16 @@
     <param name="fsm/waypoint4_y" value="$(arg point4_y)" type="double"/>
     <param name="fsm/waypoint4_z" value="$(arg point4_z)" type="double"/>
 
-    <param name="grid_map/resolution"      value="0.14" /> 
+    <param name="grid_map/resolution"      value="0.08" /> 
     <param name="grid_map/map_size_x"   value="$(arg map_size_x_)" /> 
     <param name="grid_map/map_size_y"   value="$(arg map_size_y_)" /> 
     <param name="grid_map/map_size_z"   value="$(arg map_size_z_)" /> 
-    <param name="grid_map/local_update_range_x"  value="5.5" /> 
-    <param name="grid_map/local_update_range_y"  value="5.5" /> 
-    <param name="grid_map/local_update_range_z"  value="4.5" /> 
-    <param name="grid_map/obstacles_inflation"     value="0.53" /> 
+    <param name="grid_map/local_update_range_x"  value="18" /> 
+    <param name="grid_map/local_update_range_y"  value="18" /> 
+    <param name="grid_map/local_update_range_z"  value="2" /> 
+    <param name="grid_map/obstacles_inflation"     value="0.3199" /> 
     <param name="grid_map/local_map_margin" value="10"/>
-    <param name="grid_map/ground_height"        value="-0.02"/>
+    <param name="grid_map/ground_height"        value="-0.01"/>
     <!-- camera parameter -->
     <param name="grid_map/cx" value="$(arg cx)"/>
     <param name="grid_map/cy" value="$(arg cy)"/>
@@ -126,7 +126,7 @@
     <param name="manager/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4" type="double"/>
-    <param name="manager/control_points_distance" value="0.4" type="double"/>
+    <param name="manager/control_points_distance" value="0.05" type="double"/> <!--0.4-->
     <param name="manager/feasibility_tolerance" value="0.05" type="double"/>
     <param name="manager/planning_horizon" value="$(arg planning_horizon)" type="double"/>
     <param name="manager/use_distinctive_trajs" value="$(arg use_distinctive_trajs)" type="bool"/>

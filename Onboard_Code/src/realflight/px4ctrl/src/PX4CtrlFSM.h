@@ -13,6 +13,7 @@
 #include "input.h"
 // #include "ThrustCurve.h"
 #include "controller.h"
+#include "mpc_controller.h"
 
 struct AutoTakeoffLand_t
 {
@@ -39,11 +40,13 @@ public:
 	Battery_Data_t bat_data;
 	Takeoff_Land_Data_t takeoff_land_data;
 
-	LinearControl &controller;
+	LinearControl &linear_controller;
+	OMMPCControl &mpc_controller;
 
 	ros::Publisher traj_start_trigger_pub;
 	ros::Publisher ctrl_FCU_pub;
 	ros::Publisher debug_pub; //debug
+	ros::Publisher mpc_shadow_debug_pub;
 	ros::ServiceClient set_FCU_mode_srv;
 	ros::ServiceClient arming_client_srv;
 	ros::ServiceClient reboot_FCU_srv;
@@ -62,7 +65,7 @@ public:
 		AUTO_LAND
 	};
 
-	PX4CtrlFSM(Parameter_t &, LinearControl &);
+	PX4CtrlFSM(Parameter_t &, LinearControl &, OMMPCControl &);
 	void process();
 	bool rc_is_received(const ros::Time &now_time);
 	bool cmd_is_received(const ros::Time &now_time);
@@ -76,6 +79,10 @@ public:
 private:
 	State_t state; // Should only be changed in PX4CtrlFSM::process() function!
 	AutoTakeoffLand_t takeoff_land;
+
+	bool mpc_shadow_q_inited;
+	ros::Time mpc_shadow_last_stamp;
+	Eigen::Quaterniond mpc_shadow_q;
 
 	// ---- control related ----
 	Desired_State_t get_hover_des();

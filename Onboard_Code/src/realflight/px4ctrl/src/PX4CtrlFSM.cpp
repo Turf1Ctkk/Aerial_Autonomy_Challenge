@@ -4,10 +4,13 @@
 using namespace std;
 using namespace uav_utils;
 
-PX4CtrlFSM::PX4CtrlFSM(Parameter_t &param_, LinearControl &controller_) : param(param_), controller(controller_) /*, thrust_curve(thrust_curve_)*/
+PX4CtrlFSM::PX4CtrlFSM(Parameter_t &param_, LinearControl &linear_controller_, OMMPCControl &mpc_controller_) : param(param_), linear_controller(linear_controller_), mpc_controller(mpc_controller_) /*, thrust_curve(thrust_curve_)*/
 {
 	state = MANUAL_CTRL;
 	hover_pose.setZero();
+	mpc_shadow_q_inited = false;
+	mpc_shadow_last_stamp = ros::Time(0);
+	mpc_shadow_q.setIdentity();
 }
 
 /* 
@@ -39,6 +42,7 @@ void PX4CtrlFSM::process()
 {
 
 	ros::Time now_time = ros::Time::now();
+	bool use_mpc = (param.controller_type == 1);
 	Controller_Output_t u;
 	Desired_State_t des(odom_data);
 	bool rotor_low_speed_during_land = false;
@@ -67,7 +71,8 @@ void PX4CtrlFSM::process()
 			}
 
 			state = AUTO_HOVER;
-			controller.resetThrustMapping();
+			linear_controller.resetThrustMapping();
+			mpc_controller.resetThrustMapping();
 			set_hov_with_odom();
 			toggle_offboard_mode(true);
 
@@ -115,7 +120,8 @@ void PX4CtrlFSM::process()
 			}
 
 			state = AUTO_TAKEOFF;
-			controller.resetThrustMapping();
+			linear_controller.resetThrustMapping();
+			mpc_controller.resetThrustMapping();
 			set_start_pose_for_takeoff_land(odom_data);
 			toggle_offboard_mode(true);				  // toggle on offboard before arm
 			for (int i = 0; i < 10 && ros::ok(); ++i) // wait for 0.1 seconds to allow mode change by FMU // mark
@@ -227,6 +233,7 @@ void PX4CtrlFSM::process()
 			des = get_rotor_speed_up_des(now_time);
 		}
 		else if (odom_data.p(2) >= (takeoff_land.start_pose(2) + param.takeoff_land.height)) // reach the desired height
+		//else if (odom_data.p(2) >= (takeoff_land.start_pose(2) + param.takeoff_land.dynamic_height))
 		{
 			state = AUTO_HOVER;
 			set_hov_with_odom();
@@ -298,12 +305,26 @@ void PX4CtrlFSM::process()
 	default:
 		break;
 	}
-
+	if (state == AUTO_TAKEOFF) {
+		ros::Time now = ros::Time::now();
+		double delta_t = (now - takeoff_land.toggle_takeoff_land_time).toSec() 
+							- AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME;
+		if (delta_t > 0.2)
+		{
+			if (use_mpc)
+				mpc_controller.estimateThrustModel(imu_data.a, param);
+			else
+				linear_controller.estimateThrustModel(imu_data.a, param);
+		}
+	}
 	// STEP2: estimate thrust model
 	if (state == AUTO_HOVER || state == CMD_CTRL)
 	{
 		// controller.estimateThrustModel(imu_data.a, bat_data.volt, param);
-		controller.estimateThrustModel(imu_data.a,param);
+		if (use_mpc)
+			mpc_controller.estimateThrustModel(imu_data.a, param);
+		else
+			linear_controller.estimateThrustModel(imu_data.a, param);
 
 	}
 
@@ -314,7 +335,60 @@ void PX4CtrlFSM::process()
 	}
 	else
 	{
-		debug_msg = controller.calculateControl(des, odom_data, imu_data, u);
+		if (use_mpc)
+		{
+			debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, u);
+		}
+		else
+		{
+			debug_msg = linear_controller.calculateControl(des, odom_data, imu_data, u);
+
+			if (param.mpc.shadow_compute)
+			{
+				Controller_Output_t mpc_u_shadow;
+				quadrotor_msgs::Px4ctrlDebug mpc_shadow_debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, mpc_u_shadow);
+
+				if (!mpc_shadow_q_inited)
+				{
+					mpc_shadow_q = imu_data.q.normalized();
+					mpc_shadow_last_stamp = now_time;
+					mpc_shadow_q_inited = true;
+				}
+
+				double dt_shadow = (now_time - mpc_shadow_last_stamp).toSec();
+				mpc_shadow_last_stamp = now_time;
+				if (dt_shadow > 0.0 && dt_shadow < 0.1)
+				{
+					const Eigen::Vector3d &w = mpc_u_shadow.bodyrates;
+					double theta = w.norm() * dt_shadow;
+					Eigen::Quaterniond dq;
+					if (theta < 1.0e-9)
+					{
+						dq.setIdentity();
+					}
+					else
+					{
+						dq = Eigen::Quaterniond(Eigen::AngleAxisd(theta, w.normalized()));
+					}
+					mpc_shadow_q = (mpc_shadow_q * dq).normalized();
+				}
+
+				mpc_shadow_debug_msg.des_q_x = mpc_shadow_q.x();
+				mpc_shadow_debug_msg.des_q_y = mpc_shadow_q.y();
+				mpc_shadow_debug_msg.des_q_z = mpc_shadow_q.z();
+				mpc_shadow_debug_msg.des_q_w = mpc_shadow_q.w();
+
+				mpc_shadow_debug_msg.header.stamp = now_time;
+				mpc_shadow_debug_pub.publish(mpc_shadow_debug_msg);
+
+				ROS_INFO_THROTTLE(1.0,
+					"[px4ctrl] MPC shadow thrust=%.3f bodyrate=[%.2f %.2f %.2f]",
+					mpc_u_shadow.thrust,
+					mpc_u_shadow.bodyrates(0),
+					mpc_u_shadow.bodyrates(1),
+					mpc_u_shadow.bodyrates(2));
+			}
+		}
 		debug_msg.header.stamp = now_time;
 		debug_pub.publish(debug_msg);
 	}
@@ -460,9 +534,13 @@ Desired_State_t PX4CtrlFSM::get_takeoff_land_des(const double speed)
 	return des;
 }
 
+
 void PX4CtrlFSM::set_hov_with_odom()
 {
 	hover_pose.head<3>() = odom_data.p;
+	// hover_pose(0) = 0.0;
+	// hover_pose(1) = 0.0;
+	// hover_pose(2) = param.takeoff_land.height;
 	hover_pose(3) = get_yaw_from_quaternion(odom_data.q);
 
 	last_set_hover_pose_time = ros::Time::now();

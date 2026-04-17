@@ -61,7 +61,7 @@
     <!-- planning fsm -->
     <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
     <param name="fsm/thresh_replan_time" value="1.0" type="double"/>
-    <param name="fsm/thresh_no_replan_meter" value="1.0" type="double"/>
+    <param name="fsm/thresh_no_replan_meter" value="0.05" type="double"/>
     <param name="fsm/planning_horizon" value="$(arg planning_horizon)" type="double"/> <!--always set to 1.5 times grater than sensing horizen-->
     <param name="fsm/planning_horizen_time" value="3" type="double"/>
     <param name="fsm/emergency_time" value="1.0" type="double"/>
@@ -117,7 +117,7 @@
     <param name="grid_map/min_ray_length" value="0.1"/>
     <param name="grid_map/max_ray_length" value="4.5"/>
 
-    <param name="grid_map/virtual_ceil_height"   value="2.9"/>
+    <param name="grid_map/virtual_ceil_height"   value="1.4"/>
     <param name="grid_map/visualization_truncate_height"   value="1.8"/>
     <param name="grid_map/show_occ_time"  value="false"/>
     <param name="grid_map/pose_type"     value="1"/>  
@@ -127,7 +127,7 @@
     <param name="manager/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4" type="double"/>
-    <param name="manager/control_points_distance" value="0.4" type="double"/>
+    <param name="manager/control_points_distance" value="0.05" type="double"/>
     <param name="manager/feasibility_tolerance" value="0.05" type="double"/>
     <param name="manager/planning_horizon" value="$(arg planning_horizon)" type="double"/>
     <param name="manager/use_distinctive_trajs" value="$(arg use_distinctive_trajs)" type="bool"/>

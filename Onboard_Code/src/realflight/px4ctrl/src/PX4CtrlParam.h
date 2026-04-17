@@ -10,9 +10,6 @@ public:
 	{
 		double Kp0, Kp1, Kp2;
 		double Kv0, Kv1, Kv2;
-		double Kvi0, Kvi1, Kvi2;
-		double Kvd0, Kvd1, Kvd2;
-		double KAngR, KAngP, KAngY;
 	};
 
 	struct RotorDrag
@@ -57,20 +54,43 @@ public:
 		double speed;
 	};
 
+	struct MpcParam
+	{
+		double step_T;
+		double hover_percentage;
+		double Q_pos_xy;
+		double Q_pos_z;
+		double Q_velocity;
+		double Q_attitude_rp;
+		double Q_attitude_yaw;
+		double R_thrust;
+		double R_pitchroll;
+		double R_yaw;
+		double state_cost_exponential;
+		double input_cost_exponential;
+		double max_bodyrate_xy;
+		double max_bodyrate_z;
+		double min_thrust;
+		double max_thrust;
+		bool use_fix_yaw;
+		bool use_polytraj_direct;
+		bool shadow_compute;
+		std::string polytraj_topic;
+	};
+
 	Gain gain;
 	RotorDrag rt_drag;
 	MsgTimeout msg_timeout;
 	RCReverse rc_reverse;
 	ThrustMapping thr_map;
 	AutoTakeoffLand takeoff_land;
+	MpcParam mpc;
 
-	int pose_solver;
+	int controller_type; // 0: Linear, 1: On-manifold MPC
 	double mass;
 	double gra;
-	double max_angle;
 	double ctrl_freq_max;
 	double max_manual_vel;
-	double low_voltage;
 
 	bool use_bodyrate_ctrl;
 	// bool print_dbg;
@@ -93,6 +113,15 @@ private:
 			ROS_BREAK();
 		}
 	};
+
+	template <typename TName, typename TVal>
+	void read_param_or_default(const ros::NodeHandle &nh, const TName &name, TVal &val, const TVal &default_val)
+	{
+		if (!nh.getParam(name, val))
+		{
+			val = default_val;
+		}
+	}
 };
 
 #endif

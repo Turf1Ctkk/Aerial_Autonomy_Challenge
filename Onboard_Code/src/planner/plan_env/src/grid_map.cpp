@@ -40,7 +40,8 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
 
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
-  node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, -0.1);
+  // node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, -0.5);
+  node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, 1.4);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -642,6 +643,8 @@ void GridMap::clearAndInflateLocalMap()
           }
         }
       }
+  
+  double virtual_floor_height_ = 0.8;
 
   // add virtual ceiling to limit flight height
   if (mp_.virtual_ceil_height_ > -0.5) {
@@ -649,6 +652,14 @@ void GridMap::clearAndInflateLocalMap()
     for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
       for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
         md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+      }
+  }
+
+  if (virtual_floor_height_ > -0.5) {
+    int floor_id = ceil((virtual_floor_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_);
+    for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+        md_.occupancy_buffer_inflate_[toAddress(x, y, floor_id)] = 1;
       }
   }
 }
@@ -851,11 +862,30 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
   boundIndex(md_.local_bound_max_);
 
   // add virtual ceiling to limit flight height
+  // if (mp_.virtual_ceil_height_ > -0.5) {
+  //   int ceil_id = floor((mp_.virtual_ceil_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_) - 1;
+  //   for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+  //     for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+  //       md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+  //     }
+  // }
+  double virtual_floor_height = 0.8;
+
+  // 添加虚拟天花板和地面
   if (mp_.virtual_ceil_height_ > -0.5) {
     int ceil_id = floor((mp_.virtual_ceil_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_) - 1;
     for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
       for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
         md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+      }
+  }
+  
+  // 添加虚拟地板来限制最小飞行高度
+  if (virtual_floor_height > -0.5) {
+    int floor_id = ceil((virtual_floor_height - mp_.map_origin_(2)) * mp_.resolution_inv_);
+    for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+        md_.occupancy_buffer_inflate_[toAddress(x, y, floor_id)] = 1;
       }
   }
 }

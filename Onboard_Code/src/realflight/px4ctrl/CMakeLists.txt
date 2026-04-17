@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   quadrotor_msgs
+  traj_utils
   geometry_msgs
   sensor_msgs
   uav_utils
@@ -35,6 +36,7 @@ add_executable(px4ctrl_node
   src/PX4CtrlFSM.cpp
   src/PX4CtrlParam.cpp
   src/controller.cpp
+  src/mpc_controller.cpp
   src/input.cpp
 )
 
@@ -42,6 +44,7 @@ add_dependencies(px4ctrl_node quadrotor_msgs)
 
 target_link_libraries(px4ctrl_node
   ${catkin_LIBRARIES}
+  osqp
 )
 
 catkin_install_python(PROGRAMS thrust_calibrate_scrips/thrust_calibrate.py
