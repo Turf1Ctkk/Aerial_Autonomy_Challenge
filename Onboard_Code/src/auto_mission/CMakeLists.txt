@@ -131,10 +131,12 @@ include_directories(
 add_executable(mission_node 
   src/mission_node.cpp
 )
+add_executable(simple_autonomy_node src/simple_autonomy_node.cpp)
 add_executable(gripper_test_node src/gripper_test_node.cpp)
 target_link_libraries(mission_node
   ${catkin_LIBRARIES}
 )
+target_link_libraries(simple_autonomy_node ${catkin_LIBRARIES})
 target_link_libraries(gripper_test_node ${catkin_LIBRARIES})
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}

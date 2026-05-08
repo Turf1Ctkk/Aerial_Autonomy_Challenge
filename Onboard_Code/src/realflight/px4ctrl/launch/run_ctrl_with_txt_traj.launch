@@ -5,7 +5,7 @@
   <arg name="loop" default="true" />
   <arg name="circle_radius" default="1.2" />
   <arg name="circle_altitude" default="0.8" />
-  <arg name="circle_period" default="10.0" />
+  <arg name="circle_period" default="10" />
   <arg name="circle_center_x" default="1.2" />
   <arg name="circle_center_y" default="0.0" />
   <arg name="circle_clockwise" default="true" />

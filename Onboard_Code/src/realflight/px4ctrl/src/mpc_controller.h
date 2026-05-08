@@ -50,10 +50,12 @@ public:
 	quadrotor_msgs::Px4ctrlDebug calculateControl(const Desired_State_t &des,
 												  const Odom_Data_t &odom,
 												  const Imu_Data_t &imu,
-												  Controller_Output_t &u);
+												  Controller_Output_t &u,
+												  bool allow_direct_polytraj);
 	bool estimateThrustModel(const Eigen::Vector3d &est_a,
 							 const Parameter_t &param);
 	void resetThrustMapping(void);
+	void clearTrajectory();
 
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 

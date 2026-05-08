@@ -85,6 +85,7 @@ void polyTrajCallback(traj_utils::PolyTrajPtr msg)
 
 std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, double dt)
 {
+  /* WARNING! Too fast may cause power supply problem while flying without buck on drone */
   constexpr double YAW_DOT_MAX_PER_SEC = 2 * M_PI;
   constexpr double YAW_DOT_DOT_MAX_PER_SEC = 5 * M_PI;
   std::pair<double, double> yaw_yawdot(0, 0);
@@ -149,8 +150,6 @@ std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, doub
 
   last_yaw_ = yaw_yawdot.first;
   last_yawdot_ = yaw_yawdot.second;
-
-  yaw_yawdot.second = yaw_temp;
 
   return yaw_yawdot;
 }

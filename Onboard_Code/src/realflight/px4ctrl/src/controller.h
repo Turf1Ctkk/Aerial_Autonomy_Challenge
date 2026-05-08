@@ -68,6 +68,7 @@ private:
   Parameter_t param_;
   quadrotor_msgs::Px4ctrlDebug debug_msg_;
   std::queue<std::pair<ros::Time, double>> timed_thrust_;
+  Eigen::Vector3d int_e_v_;
   static constexpr double kMinNormalizedCollectiveThrust_ = 3.0;
 
   // Thrust-accel mapping params

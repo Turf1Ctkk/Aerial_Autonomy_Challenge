@@ -1,5 +1,6 @@
 #include "mpc_controller.h"
-
+#include <uav_utils/utils.h>
+#include <algorithm>
 #include <osqp/osqp.h>
 #include <cmath>
 #include <cstring>
@@ -416,6 +417,14 @@ void OMMPCControl::feedTrajectory(const traj_utils::PolyTrajConstPtr &pMsg)
 	trajectory_data_.feed_from_traj_utils(pMsg);
 }
 
+void OMMPCControl::clearTrajectory()
+{
+	trajectory_data_.exec_traj = 0;
+	trajectory_data_.traj_queue.clear();
+	trajectory_data_.total_traj_start_time = ros::Time(0);
+	trajectory_data_.total_traj_end_time = ros::Time(0);
+}
+
 void OMMPCControl::initializeMpc()
 {
 	mpc_wrapper_.reset(new MpcWrapper());
@@ -526,41 +535,40 @@ double OMMPCControl::angleDiff(double a, double b)
 	return (fabs(d1) < fabs(d2)) ? d1 : d2;
 }
 
-void OMMPCControl::calculateYaw(const Eigen::Vector3d &vel, const double dt, double &yaw, double &yawdot)
-{
-	const double YAW_DOT_MAX_PER_SEC = param_.mpc.max_bodyrate_z * 0.90;
-	const double YAW_DOT_DOT_MAX_PER_SEC = param_.mpc.max_bodyrate_z * 4.0;
+void OMMPCControl::calculateYaw(const Eigen::Vector3d &vel,
+                                  const double dt,
+                                  double &yaw,
+                                  double &yawdot)
+  {
+      const double YAW_DOT_MAX = param_.mpc.max_bodyrate_z * 0.90;
+      const double YAW_ACC_MAX = param_.mpc.max_bodyrate_z * 4.0;
+      const double XY_SPEED_MIN = 0.3;
+	  const double xy_speed = vel.head<2>().norm();
+      double yaw_target = last_yaw_;
+      if (xy_speed > XY_SPEED_MIN)
+      {
+          yaw_target = atan2(vel(1), vel(0));
+      }
 
-	double yaw_temp = vel.norm() > 0.1 ? atan2(vel(1), vel(0)) : last_yaw_;
-	double d_yaw = angleDiff(yaw_temp, last_yaw_);
+      double yaw_err = angleDiff(yaw_target, last_yaw_);
 
-	const double YDM = d_yaw >= 0 ? YAW_DOT_MAX_PER_SEC : -YAW_DOT_MAX_PER_SEC;
-	const double YDDM = d_yaw >= 0 ? YAW_DOT_DOT_MAX_PER_SEC : -YAW_DOT_DOT_MAX_PER_SEC;
-	double d_yaw_max;
-	if (fabs(last_yaw_dot_ + dt * YDDM) <= fabs(YDM))
-	{
-		d_yaw_max = last_yaw_dot_ * dt + 0.5 * YDDM * dt * dt;
-	}
-	else
-	{
-		double t1 = (YDM - last_yaw_dot_) / YDDM;
-		d_yaw_max = ((dt - t1) + dt) * (YDM - last_yaw_dot_) / 2.0;
-	}
+      double yawdot_target = std::max(-YAW_DOT_MAX,
+                              std::min(YAW_DOT_MAX, yaw_err / dt));
 
-	if (fabs(d_yaw) > fabs(d_yaw_max))
-	{
-		d_yaw = d_yaw_max;
-	}
-	yawdot = d_yaw / dt;
-	yaw = last_yaw_ + d_yaw;
-	if (yaw > M_PI)
-		yaw -= 2 * M_PI;
-	if (yaw < -M_PI)
-		yaw += 2 * M_PI;
+      double max_delta_yawdot = YAW_ACC_MAX * dt;
+      double delta_yawdot = yawdot_target - last_yaw_dot_;
+      delta_yawdot = std::max(-max_delta_yawdot,
+                      std::min(max_delta_yawdot, delta_yawdot));
 
-	last_yaw_ = yaw;
-	last_yaw_dot_ = yawdot;
-}
+      yawdot = last_yaw_dot_ + delta_yawdot;
+      yaw = last_yaw_ + yawdot * dt;
+
+      if (yaw > M_PI) yaw -= 2.0 * M_PI;
+      if (yaw < -M_PI) yaw += 2.0 * M_PI;
+
+      last_yaw_ = yaw;
+      last_yaw_dot_ = yawdot;
+  }
 
 void OMMPCControl::setStateMatricesAndBounds(const int i,
 								 const Eigen::Quaterniond &q,
@@ -701,6 +709,7 @@ void OMMPCControl::setTextReference(const std::vector<Eigen::Vector3d> &quad_pos
 			if (i == 0)
 			{
 				last_yaw_ = start_yaw;
+				last_yaw_dot_ = 0.0;
 			}
 			calculateYaw(vel_i, t_step, yaw_i, yaw_dot_i);
 			if (i == 0)
@@ -714,7 +723,7 @@ void OMMPCControl::setTextReference(const std::vector<Eigen::Vector3d> &quad_pos
 
 		Eigen::Quaterniond q;
 		Eigen::Vector3d omg;
-		computeFlatInputwithHopfFibration(des_acc_in_world, jer_i, yaw_i, yaw_dot_i, last_q, q, omg);
+		computeFlatInputwithHopfFibration(des_acc_in_world, Eigen::Vector3d::Zero(), yaw_i, yaw_dot_i, last_q, q, omg);
 		q.normalize();
 		last_q = q;
 
@@ -784,6 +793,7 @@ void OMMPCControl::setTrajectoryReference(const Trajectory &traj,
 			if (i == 0)
 			{
 				last_yaw_ = start_yaw;
+				last_yaw_dot_ = 0.0;
 			}
 			calculateYaw(vel_quad, t_step, yaw, yaw_dot);
 			if (i == 0)
@@ -869,10 +879,11 @@ bool OMMPCControl::execMPC(const Odom_Data_t &odom, Controller_Output_t &u)
 quadrotor_msgs::Px4ctrlDebug OMMPCControl::calculateControl(const Desired_State_t &des,
 											   const Odom_Data_t &odom,
 											   const Imu_Data_t &imu,
-											   Controller_Output_t &u)
+											   Controller_Output_t &u, 
+											   bool allow_direct_polytraj)
 {
 	ros::Time now_time = ros::Time::now();
-	if (param_.mpc.use_polytraj_direct &&
+	if (allow_direct_polytraj && param_.mpc.use_polytraj_direct &&
 		now_time >= trajectory_data_.total_traj_start_time &&
 		now_time <= trajectory_data_.total_traj_end_time &&
 		trajectory_data_.exec_traj == 1 &&
@@ -902,7 +913,8 @@ quadrotor_msgs::Px4ctrlDebug OMMPCControl::calculateControl(const Desired_State_
 		else
 		{
 			double traj_time = (now_time - traj_info->traj_start_time).toSec();
-			setTrajectoryReference(traj_info->traj, traj_time, des.yaw, traj_info->yaw_traj, odom);
+			double start_yaw = uav_utils::get_yaw_from_quaternion(odom.q);
+			setTrajectoryReference(traj_info->traj, traj_time, start_yaw, traj_info->yaw_traj, odom);
 		}
 	}
 	else
@@ -946,6 +958,9 @@ quadrotor_msgs::Px4ctrlDebug OMMPCControl::calculateControl(const Desired_State_
 	debug_msg_.des_q_z = u.q.z();
 	debug_msg_.des_q_w = u.q.w();
 	debug_msg_.des_thr = u.thrust;
+	debug_msg_.fb_rate_x = u.bodyrates(0);
+	debug_msg_.fb_rate_y = u.bodyrates(1);
+	debug_msg_.fb_rate_z = u.bodyrates(2);
 
 	return debug_msg_;
 }

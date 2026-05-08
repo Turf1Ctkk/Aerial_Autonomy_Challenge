@@ -12,6 +12,9 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 	read_essential_param(nh, "gain/Kv0", gain.Kv0);
 	read_essential_param(nh, "gain/Kv1", gain.Kv1);
 	read_essential_param(nh, "gain/Kv2", gain.Kv2);
+	read_essential_param(nh, "gain/Kvi0", gain.Kvi0);
+	read_essential_param(nh, "gain/Kvi1", gain.Kvi1);
+	read_essential_param(nh, "gain/Kvi2", gain.Kvi2);
 
 	read_essential_param(nh, "rotor_drag/x", rt_drag.x);
 	read_essential_param(nh, "rotor_drag/y", rt_drag.y);
@@ -91,7 +94,12 @@ void Parameter_t::config_from_ros_handle(const ros::NodeHandle &nh)
 		use_bodyrate_ctrl = true;
 		ROS_WARN("[px4ctrl] controller_type=1 (OM-MPC) requires bodyrate control. Force set use_bodyrate_ctrl=true.");
 	}
-};
+	if (controller_type == 0 && use_bodyrate_ctrl)
+	{
+		use_bodyrate_ctrl = false;
+		ROS_WARN("[px4ctrl] controller_type=0 (linear) outputs attitude control. Force set use_bodyrate_ctrl=false.");
+	}
+	};
 
 // void Parameter_t::config_full_thrust(double hov)
 // {

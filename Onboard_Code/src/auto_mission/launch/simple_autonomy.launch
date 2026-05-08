@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="auto_mission" type="simple_autonomy_node" name="simple_autonomy" output="screen" />
+</launch>

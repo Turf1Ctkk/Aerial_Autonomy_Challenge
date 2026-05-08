@@ -1,0 +1,30 @@
+Initialization result:
+Rotation LiDAR to IMU (degree)     = -0.031095 15.091455  0.293059
+Translation LiDAR to IMU (meter)   =  0.021306 -0.011535  0.074095
+Time Lag IMU to LiDAR (second)     = -0.011310
+Bias of Gyroscope  (rad/s)         = -0.001250 -0.000400 -0.000950
+Bias of Accelerometer (meters/s^2) = -0.007000 -0.009860  0.012264
+Gravity in World Frame(meters/s^2) =  2.791226 -0.183819 -9.402732
+
+Homogeneous Transformation Matrix from LiDAR to IMU: 
+ 0.965504 -0.005256  0.260336  0.021306
+ 0.004938  0.999986  0.001874 -0.011535
+-0.260342 -0.000524  0.965516  0.074095
+ 0.000000  0.000000  0.000000  1.000000
+
+
+Refinement result:
+Rotation LiDAR to IMU (degree)     = -0.201635 14.926115  0.358717
+Translation LiDAR to IMU (meter)   =  0.024267 -0.004563  0.080883
+Time Lag IMU to LiDAR (second)     = -0.011310
+Bias of Gyroscope  (rad/s)         = -0.000222 -0.000744  0.000142
+Bias of Accelerometer (meters/s^2) = -0.009726 -0.015013  0.012857
+Gravity in World Frame(meters/s^2) =  2.790317 -0.190036 -9.399809
+
+Homogeneous Transformation Matrix from LiDAR to IMU: 
+ 0.966245 -0.007167  0.257526  0.024267
+ 0.006049  0.999969  0.005131 -0.004563
+-0.257555 -0.003400  0.966258  0.080883
+ 0.000000  0.000000  0.000000  1.000000
+
+

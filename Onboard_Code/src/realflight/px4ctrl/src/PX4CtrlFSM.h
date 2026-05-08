@@ -101,6 +101,7 @@ private:
 
 	bool toggle_offboard_mode(bool on_off); // It will only try to toggle once, so not blocked.
 	bool toggle_arm_disarm(bool arm); // It will only try to toggle once, so not blocked.
+	bool force_disarm();
 	void reboot_FCU();
 
 	void publish_bodyrate_ctrl(const Controller_Output_t &u, const ros::Time &stamp);

@@ -8,6 +8,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.7 REQUIRED)
+find_package(OpenCV REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -46,6 +47,7 @@ add_executable(diff_planner_node
   )
 target_link_libraries(diff_planner_node 
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
   )
 #add_dependencies(diff_planner_node ${${PROJECT_NAME}_EXPORTED_TARGETS})
 

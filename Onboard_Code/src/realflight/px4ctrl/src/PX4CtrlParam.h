@@ -10,6 +10,7 @@ public:
 	{
 		double Kp0, Kp1, Kp2;
 		double Kv0, Kv1, Kv2;
+		double Kvi0, Kvi1, Kvi2;
 	};
 
 	struct RotorDrag

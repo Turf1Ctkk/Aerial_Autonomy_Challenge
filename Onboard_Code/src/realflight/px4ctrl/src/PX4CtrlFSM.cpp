@@ -1,4 +1,6 @@
 #include "PX4CtrlFSM.h"
+#include <algorithm>
+#include <cmath>
 #include <uav_utils/converters.h>
 
 using namespace std;
@@ -200,13 +202,14 @@ void PX4CtrlFSM::process()
 		if (!rc_data.is_hover_mode || !odom_is_received(now_time))
 		{
 			state = MANUAL_CTRL;
+			mpc_controller.clearTrajectory();
 			toggle_offboard_mode(false);
-
 			ROS_WARN("[px4ctrl] From CMD_CTRL(L3) to MANUAL_CTRL(L1)!");
 		}
 		else if (!rc_data.is_command_mode || !cmd_is_received(now_time))
 		{
 			state = AUTO_HOVER;
+			mpc_controller.clearTrajectory();
 			set_hov_with_odom();
 			des = get_hover_des();
 			ROS_INFO("[px4ctrl] From CMD_CTRL(L3) to AUTO_HOVER(L2)!");
@@ -252,8 +255,13 @@ void PX4CtrlFSM::process()
 
 	case AUTO_LAND:
 	{
+		static ros::Time rotor_low_speed_start_time;
+		static bool rotor_low_speed_start_time_set = false;
+		static double last_force_disarm_trial_time = 0; // Avoid too frequent calls
+
 		if (!rc_data.is_hover_mode || !odom_is_received(now_time))
 		{
+			rotor_low_speed_start_time_set = false;
 			state = MANUAL_CTRL;
 			toggle_offboard_mode(false);
 
@@ -261,6 +269,7 @@ void PX4CtrlFSM::process()
 		}
 		else if (!rc_data.is_command_mode)
 		{
+			rotor_low_speed_start_time_set = false;
 			state = AUTO_HOVER;
 			set_hov_with_odom();
 			des = get_hover_des();
@@ -268,6 +277,7 @@ void PX4CtrlFSM::process()
 		}
 		else if (!get_landed())
 		{
+			rotor_low_speed_start_time_set = false;
 			des = get_takeoff_land_des(-param.takeoff_land.speed);
 		}
 		else
@@ -277,24 +287,47 @@ void PX4CtrlFSM::process()
 			static bool print_once_flag = true;
 			if (print_once_flag)
 			{
-				ROS_INFO("\033[32m[px4ctrl] Wait for abount 10s to let the drone arm.\033[32m");
+				ROS_INFO("\033[32m[px4ctrl] IDLE\033[32m");
 				print_once_flag = false;
 			}
 
-			if (extended_state_data.current_extended_state.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) // PX4 allows disarm after this
+			// if (extended_state_data.current_extended_state.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) // PX4 allows disarm after this
+			// {
+			// 	static double last_trial_time = 0; // Avoid too frequent calls
+			// 	if (now_time.toSec() - last_trial_time > 1.0)
+			// 	{
+			// 		if (toggle_arm_disarm(false)) // disarm
+			// 		{
+			// 			print_once_flag = true;
+			// 			state = MANUAL_CTRL;
+			// 			toggle_offboard_mode(false); // toggle off offboard after disarm
+			// 			ROS_INFO("\033[32m[px4ctrl] AUTO_LAND --> MANUAL_CTRL(L1)\033[32m");
+			// 		}
+
+			// 		last_trial_time = now_time.toSec();
+			// 	}
+			// }
+
+			if (!rotor_low_speed_start_time_set)
 			{
-				static double last_trial_time = 0; // Avoid too frequent calls
-				if (now_time.toSec() - last_trial_time > 1.0)
+				rotor_low_speed_start_time = now_time;
+				rotor_low_speed_start_time_set = true;
+			}
+
+			if ((now_time - rotor_low_speed_start_time).toSec() > 0.5)
+			{
+				if (now_time.toSec() - last_force_disarm_trial_time > 0.5)
 				{
-					if (toggle_arm_disarm(false)) // disarm
+					if (force_disarm())
 					{
+						rotor_low_speed_start_time_set = false;
 						print_once_flag = true;
 						state = MANUAL_CTRL;
 						toggle_offboard_mode(false); // toggle off offboard after disarm
 						ROS_INFO("\033[32m[px4ctrl] AUTO_LAND --> MANUAL_CTRL(L1)\033[32m");
 					}
 
-					last_trial_time = now_time.toSec();
+					last_force_disarm_trial_time = now_time.toSec();
 				}
 			}
 		}
@@ -318,10 +351,8 @@ void PX4CtrlFSM::process()
 			else
 			{
 				linear_controller.estimateThrustModel(imu_data.a, param);
-				if (param.mpc.shadow_compute)
-				{
-					mpc_controller.estimateThrustModel(imu_data.a, param);
-				}
+				// In shadow mode, MPC thrust is not applied to the vehicle.
+				// Updating MPC thrust mapping with shadow-only commands can bias thr2acc.
 			}
 		}
 	}
@@ -336,10 +367,7 @@ void PX4CtrlFSM::process()
 		else
 		{
 			linear_controller.estimateThrustModel(imu_data.a, param);
-			if (param.mpc.shadow_compute)
-			{
-				mpc_controller.estimateThrustModel(imu_data.a, param);
-			}
+			// Keep MPC thrust mapping frozen in shadow mode.
 		}
 
 	}
@@ -353,7 +381,7 @@ void PX4CtrlFSM::process()
 	{
 		if (use_mpc)
 		{
-			debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, u);
+			debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, u, state == CMD_CTRL);
 		}
 		else
 		{
@@ -362,7 +390,7 @@ void PX4CtrlFSM::process()
 			if (param.mpc.shadow_compute)
 			{
 				Controller_Output_t mpc_u_shadow;
-				quadrotor_msgs::Px4ctrlDebug mpc_shadow_debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, mpc_u_shadow);
+				quadrotor_msgs::Px4ctrlDebug mpc_shadow_debug_msg = mpc_controller.calculateControl(des, odom_data, imu_data, mpc_u_shadow, state == CMD_CTRL);
 
 				if (!mpc_shadow_q_inited)
 				{
@@ -393,16 +421,19 @@ void PX4CtrlFSM::process()
 				mpc_shadow_debug_msg.des_q_y = mpc_shadow_q.y();
 				mpc_shadow_debug_msg.des_q_z = mpc_shadow_q.z();
 				mpc_shadow_debug_msg.des_q_w = mpc_shadow_q.w();
+				mpc_shadow_debug_msg.fb_rate_x = mpc_u_shadow.bodyrates(0);
+				mpc_shadow_debug_msg.fb_rate_y = mpc_u_shadow.bodyrates(1);
+				mpc_shadow_debug_msg.fb_rate_z = mpc_u_shadow.bodyrates(2);
 
 				mpc_shadow_debug_msg.header.stamp = now_time;
 				mpc_shadow_debug_pub.publish(mpc_shadow_debug_msg);
 
-				ROS_INFO_THROTTLE(1.0,
-					"[px4ctrl] MPC shadow thrust=%.3f bodyrate=[%.2f %.2f %.2f]",
-					mpc_u_shadow.thrust,
-					mpc_u_shadow.bodyrates(0),
-					mpc_u_shadow.bodyrates(1),
-					mpc_u_shadow.bodyrates(2));
+				// ROS_INFO_THROTTLE(1.0,
+				// 	"[px4ctrl] MPC shadow thrust=%.3f bodyrate=[%.2f %.2f %.2f]",
+				// 	mpc_u_shadow.thrust,
+				// 	mpc_u_shadow.bodyrates(0),
+				// 	mpc_u_shadow.bodyrates(1),
+				// 	mpc_u_shadow.bodyrates(2));
 			}
 		}
 		debug_msg.header.stamp = now_time;
@@ -454,9 +485,9 @@ void PX4CtrlFSM::land_detector(const State_t state, const Desired_State_t &des, 
 	}
 
 	// land_detector parameters
-	constexpr double POSITION_DEVIATION_C = -0.5; // Constraint 1: target position below real position for POSITION_DEVIATION_C meters.
-	constexpr double VELOCITY_THR_C = 0.1;		  // Constraint 2: velocity below VELOCITY_MIN_C m/s.
-	constexpr double TIME_KEEP_C = 3.0;			  // Constraint 3: Time(s) the Constraint 1&2 need to keep.
+	constexpr double POSITION_DEVIATION_C = -0.3; // Constraint 1: target position below real position for POSITION_DEVIATION_C meters.
+	constexpr double VELOCITY_THR_C = 0.2;		  // Constraint 2: velocity below VELOCITY_MIN_C m/s.
+	constexpr double TIME_KEEP_C = 1.8;			  // Constraint 3: Time(s) the Constraint 1&2 need to keep.
 
 	static ros::Time time_C12_reached; // time_Constraints12_reached
 	static bool is_last_C12_satisfy;
@@ -534,20 +565,105 @@ Desired_State_t PX4CtrlFSM::get_rotor_speed_up_des(const ros::Time now)
 Desired_State_t PX4CtrlFSM::get_takeoff_land_des(const double speed)
 {
 	ros::Time now = ros::Time::now();
-	double delta_t = (now - takeoff_land.toggle_takeoff_land_time).toSec() - (speed > 0 ? AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME : 0); // speed > 0 means takeoff
-	// takeoff_land.last_set_cmd_time = now;
-
-	// takeoff_land.start_pose(2) += speed * delta_t;
-
 	Desired_State_t des;
-	des.p = takeoff_land.start_pose.head<3>() + Eigen::Vector3d(0, 0, speed * delta_t);
-	des.v = Eigen::Vector3d(0, 0, speed);
+	des.p = takeoff_land.start_pose.head<3>();
+	des.v = Eigen::Vector3d::Zero();
 	des.a = Eigen::Vector3d::Zero();
 	des.j = Eigen::Vector3d::Zero();
 	des.yaw = takeoff_land.start_pose(3);
 	des.yaw_rate = 0.0;
 
+	double delta_t = (now - takeoff_land.toggle_takeoff_land_time).toSec();
+
+	if (speed > 0.0)
+	{
+		delta_t -= AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME;
+		delta_t = std::max(0.0, delta_t);
+	}
+
+	des.p(2) += speed * delta_t;
+	des.v(2) = speed;
+
 	return des;
+
+	// const double abs_speed = std::max(std::fabs(speed), 1.0e-3);
+	// if (speed > 0.0)
+	// {
+	// 	double t = (now - takeoff_land.toggle_takeoff_land_time).toSec() -
+	// 	           AutoTakeoffLand_t::MOTORS_SPEEDUP_TIME;
+	// 	t = std::max(0.0, t);
+
+	// 	const double height = std::max(param.takeoff_land.height, 0.0);
+	// 	if (height < 1.0e-6)
+	// 	{
+	// 		return des;
+	// 	}
+
+	// 	// Quintic smoothstep. Its peak velocity is 1.875 * height / duration.
+	// 	const double duration = std::max(1.875 * height / abs_speed, 1.0);
+	// 	const double s = std::min(t / duration, 1.0);
+	// 	const double s2 = s * s;
+	// 	const double s3 = s2 * s;
+	// 	const double s4 = s3 * s;
+	// 	const double s5 = s4 * s;
+
+	// 	const double sigma = 10.0 * s3 - 15.0 * s4 + 6.0 * s5;
+	// 	const double sigma_dot = (30.0 * s2 - 60.0 * s3 + 30.0 * s4) / duration;
+	// 	const double sigma_ddot = (60.0 * s - 180.0 * s2 + 120.0 * s3) / (duration * duration);
+	// 	const double sigma_jerk = (60.0 - 360.0 * s + 360.0 * s2) /
+	// 	                          (duration * duration * duration);
+
+	// 	if (t < duration)
+	// 	{
+	// 		des.p(2) += height * sigma;
+	// 		des.v(2) = height * sigma_dot;
+	// 		des.a(2) = height * sigma_ddot;
+	// 		des.j(2) = height * sigma_jerk;
+	// 	}
+	// 	else
+	// 	{
+	// 		const double tail_speed = std::min(0.08, 0.25 * abs_speed);
+	// 		const double tail_t = t - duration;
+
+	// 		des.p(2) += height + tail_speed * tail_t;
+	// 		des.v(2) = tail_speed;
+	// 		des.a(2) = 0.0;
+	// 		des.j(2) = 0.0;
+	// 	}
+	// }
+	// else
+	// {
+	// 	double t = (now - takeoff_land.toggle_takeoff_land_time).toSec();
+	// 	t = std::max(0.0, t);
+
+	// 	const double ramp_duration = std::max(1.0, abs_speed / 0.5);
+	// 	double z_offset = 0.0;
+	// 	double vz = 0.0;
+	// 	double az = 0.0;
+	// 	double jz = 0.0;
+
+	// 	if (t < ramp_duration)
+	// 	{
+	// 		const double pi = std::acos(-1.0);
+	// 		const double w = pi / ramp_duration;
+	// 		z_offset = -abs_speed * (0.5 * t - std::sin(w * t) / (2.0 * w));
+	// 		vz = -abs_speed * 0.5 * (1.0 - std::cos(w * t));
+	// 		az = -abs_speed * 0.5 * w * std::sin(w * t);
+	// 		jz = -abs_speed * 0.5 * w * w * std::cos(w * t);
+	// 	}
+	// 	else
+	// 	{
+	// 		z_offset = -abs_speed * (t - 0.5 * ramp_duration);
+	// 		vz = -abs_speed;
+	// 	}
+
+	// 	des.p(2) += z_offset;
+	// 	des.v(2) = vz;
+	// 	des.a(2) = az;
+	// 	des.j(2) = jz;
+	// }
+
+	// return des;
 }
 
 
@@ -568,9 +684,9 @@ void PX4CtrlFSM::set_hov_with_rc()
 	double delta_t = (now - last_set_hover_pose_time).toSec();
 	last_set_hover_pose_time = now;
 
-	hover_pose(0) += rc_data.ch[2] * param.max_manual_vel * delta_t * (param.rc_reverse.pitch ? 1 : -1);
+	hover_pose(0) += rc_data.ch[1] * param.max_manual_vel * delta_t * (param.rc_reverse.pitch ? 1 : -1);
 	hover_pose(1) += rc_data.ch[0] * param.max_manual_vel * delta_t * (param.rc_reverse.roll ? 1 : -1);
-	hover_pose(2) += rc_data.ch[1] * param.max_manual_vel * delta_t * (param.rc_reverse.throttle ? 1 : -1);
+	hover_pose(2) += rc_data.ch[2] * param.max_manual_vel * delta_t * (param.rc_reverse.throttle ? 1 : -1);
 	hover_pose(3) += rc_data.ch[3] * param.max_manual_vel * delta_t * (param.rc_reverse.yaw ? 1 : -1);
 
 	if (hover_pose(2) < -0.3)
@@ -723,6 +839,24 @@ bool PX4CtrlFSM::toggle_arm_disarm(bool arm)
 		else
 			ROS_ERROR("DISARM rejected by PX4!");
 
+		return false;
+	}
+
+	return true;
+}
+
+bool PX4CtrlFSM::force_disarm()
+{
+	mavros_msgs::CommandLong force_disarm_srv;
+	force_disarm_srv.request.broadcast = false;
+	force_disarm_srv.request.command = 400; // MAV_CMD_COMPONENT_ARM_DISARM
+	force_disarm_srv.request.confirmation = 0;
+	force_disarm_srv.request.param1 = 0;		// Disarm
+	force_disarm_srv.request.param2 = 21196; // Force disarm
+
+	if (!(reboot_FCU_srv.call(force_disarm_srv) && force_disarm_srv.response.success))
+	{
+		ROS_ERROR("FORCE DISARM rejected by PX4!");
 		return false;
 	}
 

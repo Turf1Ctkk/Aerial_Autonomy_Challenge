@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
                                                       ros::TransportHints().tcpNoDelay());
 
     ros::Subscriber mpc_traj_sub;
-    if (param.controller_type == 1 && param.mpc.use_polytraj_direct)
+    if (param.mpc.use_polytraj_direct && (param.controller_type == 1 || param.mpc.shadow_compute))
     {
         mpc_traj_sub = nh.subscribe<traj_utils::PolyTraj>(param.mpc.polytraj_topic,
                                                           100,

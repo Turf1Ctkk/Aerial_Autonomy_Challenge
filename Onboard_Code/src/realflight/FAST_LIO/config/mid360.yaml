@@ -2,7 +2,7 @@ common:
     lid_topic:  "/livox/lidar"
     imu_topic:  "/mavros/imu/data_raw"
     time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
-    time_offset_lidar_to_imu: -0.037188 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
+    time_offset_lidar_to_imu: -0.009452 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
                                   # This param will take effect no matter what time_sync_en is. So if the time offset is not known exactly, please set as 0.0
 
 preprocess:
@@ -18,10 +18,10 @@ mapping:
     fov_degree:    360
     det_range:     40.0
     extrinsic_est_en:  false      # true: enable the online estimation of IMU-LiDAR extrinsic
-    extrinsic_T: [ 0.010059, -0.001772,  0.106359 ]
-    extrinsic_R: [-0.000999, -0.872151,  0.489236,
-                0.999786, -0.010976, -0.017524,
-                0.020653,  0.489114,  0.871975]  
+    extrinsic_T: [ 0.021294, 0.007915, 0.092372 ]
+    extrinsic_R: [0.964619, -0.011485,  0.263397,
+                0.011210,  0.999934,  0.002548,
+                -0.263409,  0.000495,  0.964684]  
 
 publish:
     path_en:  true
