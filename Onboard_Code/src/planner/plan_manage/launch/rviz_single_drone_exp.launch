@@ -1,3 +1,0 @@
-<launch>
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ego_planner)/launch/default_single_drone_exp.rviz" required="true" />
-</launch>

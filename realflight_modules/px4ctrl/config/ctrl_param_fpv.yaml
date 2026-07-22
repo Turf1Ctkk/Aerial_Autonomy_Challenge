@@ -1,0 +1,93 @@
+#########################################################################
+# ⭐⭐⭐  Set parameters carefully for satisfied performance!   ⭐⭐⭐ #
+#########################################################################
+
+mass        : 1.2 # kg
+gra         : 9.81 
+pose_solver : 0    # 1:From ZhepeiWang, 2:From rotor-drag    
+ctrl_freq_max   : 200.0
+max_manual_vel: 1.0
+max_angle: 80  # Attitude angle limit in degree. A negative value means no limit.
+low_voltage: 21.0 # 6S battery
+
+rc_reverse: # *
+    roll: false
+    pitch: false
+    yaw: false
+    throttle: true
+
+auto_takeoff_land:
+    enable: true
+    enable_auto_arm: true
+    no_RC: false
+    takeoff_height: 1.1 # m
+    takeoff_land_speed: 0.4 # m/s
+    land_point_x: -0.91 # m, final landing point x in world frame
+    land_point_y: -3.35 # m, final landing point y in world frame
+
+thrust_model: # The model that maps thrust signal u(0~1) to real thrust force F(Unit:N): F=K1*Voltage^K2*(K3*u^2+(1-K3)*u). 
+    print_value: false # display the value of “thr_scale_compensate” or “hover_percentage” during thrust model estimating.
+    accurate_thrust_model: false  # This can always enabled if don't require accurate control performance :-)
+    noisy_imu: false
+    # accurate thrust mapping parameters
+    K1: 0.7583 # Needs precise calibration!
+    K2: 1.6942 # Needs precise calibration!
+    K3: 0.6786 # Needs precise calibration! K3 equals THR_MDL_FAC in https://docs.L_Ctrl.io/master/en/config_mc/pid_tuning_guide_multicopter.html.
+    # approximate thrust mapping parameters
+    hover_percentage: 0.295 # Thrust percentage in Stabilize/Arco mode # *
+
+position_adrc:
+    enable: false
+    # Per-axis settings in ROS ENU order: [x, y, z].
+    # z3 estimates world-frame translational disturbance acceleration.
+    axis_enable: [true, true, true]
+    beta1: [4.5, 4.5, 4.5]
+    beta2: [6.75, 6.75, 6.75]
+    beta3: [3.375, 3.375, 3.375]
+    b0: [1.0, 1.0, 1.0]
+    fal_delta: [0.03, 0.03, 0.03]
+    comp_gain: [0.25, 0.63, 0.0] # applied compensation ratio per axis
+    deadband: [0.60, 0.40, 0.45] # z uses soft deadband; x/y use this only if horizontal_deadband <= 0
+    horizontal_deadband: 0.0 # m/s^2, soft deadband on norm([dist_x, dist_y])
+    leak_rate: [0.9, 0.8, 0.4] # 1/s, leaks z3 toward zero when no disturbance is present
+    max_dist_acc: [1.1, 1.1, 0.8] # m/s^2 per axis, <= 0 disables saturation
+
+gain: 
+    # Cascade PID controller. Recommend to read the code.
+    # Fine tune at max_vel = 1.5
+    # Kp0: 2.15
+    # Kp1: 2.15
+    # Kp2: 2.1
+    # Kv0: 2.80
+    # Kv1: 2.80
+    # Kv2: 3.5
+    Kp0: 2.1
+    Kp1: 2.1
+    Kp2: 2.1
+    Kv0: 2.7
+    Kv1: 2.7
+    Kv2: 3.5
+    # ↓↓↓ No use now --
+    Kvi0: 0.0
+    Kvi1: 0.0
+    Kvi2: 0.0
+    Kvd0: 0.0
+    Kvd1: 0.0
+    Kvd2: 0.0
+    # ↓↓↓ Only used in rate control mode.
+    KAngR: 20.0
+    KAngP: 20.0
+    KAngY: 4.0
+
+rotor_drag:  
+    x: 0.0  # The reduced acceleration on each axis caused by rotor drag. Unit:(m*s^-2)/(m*s^-1).
+    y: 0.0  # Same as above
+    z: 0.0  # Same as above
+    k_thrust_horz: 0.0 # Set to 0 recommended... --
+
+msg_timeout:
+    odom: 0.5
+    rc:   0.5
+    cmd:  0.5
+    imu:  0.5
+    bat:  0.5

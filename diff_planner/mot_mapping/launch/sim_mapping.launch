@@ -1,0 +1,30 @@
+<launch>
+  <arg name="odom_topic" default="/drone_0_visual_slam/odom"/>
+  <arg name="lidar_topic" default="/map_generator/obj_cloud"/>
+  <arg name="states_topic" default="/states"/>
+  <arg name="static_map_topic" default="/static_map"/>
+
+  <node pkg="mot_mapping" type="mapping_node" name="mapping_node" output="screen">
+    <param name="ros/odom_topic" value="$(arg odom_topic)"/>
+    <param name="ros/lidar_topic" value="$(arg lidar_topic)"/>
+    <param name="ros/states_topic" value="$(arg states_topic)"/>
+    <param name="ros/static_map_topic" value="$(arg static_map_topic)"/>
+    <param name="ros/dynamic_points_topic" value="/dynamic_points"/>
+    <param name="ros/map_topic" value="/mot_map_cloud"/>
+    <param name="ros/box_edge_topic" value="/box_edge"/>
+    <param name="ros/object_pose_topic" value="/object_pose"/>
+    <param name="ros/frame_id" value="world"/>
+    <param name="lidar/input_cloud_in_world" value="true"/>
+    <param name="lidar/range_x" value="15.0" type="double"/>
+    <param name="lidar/range_y" value="15.0" type="double"/>
+    <param name="lidar/range_z" value="5.0" type="double"/>
+    <param name="dbscan/core_pts" value="3" type="int"/>
+    <param name="dbscan/tolerance" value="0.4" type="double"/>
+    <param name="dbscan/min_cluster" value="15" type="int"/>
+    <param name="dbscan/max_cluster" value="1000" type="int"/>
+    <param name="detection/thresh_dist" value="0.02" type="double"/>
+    <param name="detection/thresh_var" value="0.8" type="double"/>
+    <param name="tracking/ekf_adaptive_q" value="true"/>
+    <param name="debug/verbose" value="false"/>
+  </node>
+</launch>

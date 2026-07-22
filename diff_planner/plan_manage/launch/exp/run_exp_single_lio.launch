@@ -1,0 +1,134 @@
+<launch>
+	    <arg name="odom_topic" value="/ekf/ekf_odom"/>
+	    <arg name="drone_id"  value="0"/>
+	    <arg name="enable_dynamic_mapping" default="true"/>
+	    <arg name="raw_cloud_topic" default="/laserMapping/cloud_registered"/>
+	    <arg name="planner_cloud_topic" default="/static_map"/>
+	    <arg name="dynamic_states_topic" default="/states"/>
+	    <group if="$(arg enable_dynamic_mapping)">
+	        <node pkg="mot_mapping" type="mapping_node" name="mot_mapping" output="screen">
+	            <param name="ros/odom_topic" value="$(arg odom_topic)"/>
+	            <param name="ros/lidar_topic" value="$(arg raw_cloud_topic)"/>
+	            <param name="ros/states_topic" value="$(arg dynamic_states_topic)"/>
+	            <param name="ros/static_map_topic" value="$(arg planner_cloud_topic)"/>
+	            <param name="ros/dynamic_points_topic" value="/dynamic_points"/>
+	            <param name="ros/map_topic" value="/mot_map_cloud"/>
+	            <param name="ros/box_edge_topic" value="/box_edge"/>
+	            <param name="ros/object_pose_topic" value="/object_pose"/>
+	            <param name="ros/frame_id" value="world"/>
+	            <param name="ros/sync_queue_size" value="100" type="int"/>
+	            <param name="lidar/input_cloud_in_world" value="true"/>
+	            <param name="lidar/range_x" value="7.5" type="double"/>
+	            <param name="lidar/range_y" value="7.5" type="double"/>
+	            <param name="lidar/range_z" value="3.0" type="double"/>
+	            <param name="filter/filter_leaf_size" value="0.05" type="double"/>
+	            <param name="filter/cluster_leaf_size" value="0.05" type="double"/>
+	            <param name="filter/output_leaf_size" value="0.05" type="double"/>
+				<param name="mapping/cloud_buffer_size" value="1" type="int"/>
+	            <param name="dbscan/core_pts" value="3" type="int"/>
+	            <param name="dbscan/tolerance" value="0.09" type="double"/>
+	            <param name="dbscan/min_cluster" value="6" type="int"/>
+	            <param name="dbscan/max_cluster" value="1000" type="int"/>
+	            <param name="detection/thresh_dist" value="0.02" type="double"/>
+	            <param name="detection/thresh_var" value="0.9" type="double"/>
+	            <param name="detection/max_avg_dist" value="5.0" type="double"/>
+	            <param name="detection/enable_size_filter" value="true"/>
+	            <param name="detection/size_filter_keep_tracked" value="true"/>
+	            <param name="detection/min_size_x" value="0.03" type="double"/>
+	            <param name="detection/min_size_y" value="0.03" type="double"/>
+	            <param name="detection/min_size_z" value="0.30" type="double"/>
+	            <param name="detection/max_size_x" value="0.8" type="double"/>
+	            <param name="detection/max_size_y" value="0.8" type="double"/>
+	            <param name="detection/max_size_z" value="2.00" type="double"/>
+	            <!-- World-frame ROI for dynamic detection. Clusters outside this box are treated as static. -->
+	            <param name="detection/enable_roi_filter" value="true"/>
+	            <param name="detection/roi_min_x" value="4.5" type="double"/>
+	            <param name="detection/roi_min_y" value="-5.0" type="double"/>
+	            <param name="detection/roi_min_z" value="0.0" type="double"/>
+	            <param name="detection/roi_max_x" value="7.5" type="double"/>
+	            <param name="detection/roi_max_y" value="-2.0" type="double"/>
+	            <param name="detection/roi_max_z" value="2.0" type="double"/>
+	            <param name="tracking/association_gate" value="0.8" type="double"/>
+	            <param name="tracking/tracker_timeout_frames" value="40" type="int"/>
+	            <param name="tracking/velocity_blend" value="0.30" type="double"/>
+	            <param name="tracking/horizontal_motion_prior" value="true"/>
+	            <param name="tracking/vertical_velocity_scale" value="0.0" type="double"/>
+	            <param name="tracking/max_vertical_velocity" value="0.05" type="double"/>
+	            <param name="tracking/ekf_q_pos" value="0.015" type="double"/>
+	            <param name="tracking/ekf_q_vel" value="0.008" type="double"/>
+	            <param name="tracking/ekf_r_pos" value="0.08" type="double"/>
+	            <param name="tracking/ekf_r_vel" value="0.8" type="double"/>
+	            <param name="tracking/ekf_max_vel" value="1.2" type="double"/>
+	            <param name="tracking/ekf_adaptive_q" value="false"/>
+	            <param name="debug/verbose" value="false"/>
+	        </node>
+	    </group>
+	    <include file="$(find diff_planner)/launch/include/advanced_param_exp.xml">
+	        <arg name="odom_topic" value="$(arg odom_topic)"/>
+	        <arg name="drone_id" value="$(arg drone_id)"/>
+        <!-- camera pose: transform of camera frame in the world frame -->
+        <!-- depth topic: depth image, 640x480 by default -->
+        <!-- don't set cloud_topic if you already set these ones! -->
+        <arg name="camera_pose_topic" value="no_use0"/>
+        <arg name="depth_topic" value="no_use1"/>
+        <!-- topic of point cloud measurement, such as from LIDAR  -->
+        <!-- don't set camera pose and depth, if you already set this one! -->
+	        <arg name="cloud_topic" value="$(arg planner_cloud_topic)"/>
+	        <arg name="dynamic_states_topic" value="$(arg dynamic_states_topic)"/>
+        <!-- intrinsic params of the depth camera -->
+        <arg name="cx" value="319.31427001953125"/>
+        <arg name="cy" value="239.09725952148438"/>
+        <arg name="fx" value="386.2706298828125"/>
+        <arg name="fy" value="386.2706298828125"/>
+        <!-- maximum velocity, acceleration and jerk the drone will reach -->
+        <arg name="max_vel" value="1.0" /><!--1.5-->
+        <arg name="max_acc" value="3.5" /><!--4.5-->
+        <arg name="max_jer" value="12.0"/><!--20.0-->
+        <!--always set to 1.5 times grater than sensing horizen-->
+        <arg name="planning_horizon" value="6.5" />
+        <!-- map parameters  -->
+        <arg name="local_map_size_x" value="7.5"/>
+        <arg name="local_map_size_y" value="7.5"/>
+        <arg name="local_map_size_z" value="1.8"/>
+        <arg name="enable_virtual_wall" value="true"/>
+        <arg name="virtual_ceil" value="1.5"/>
+        <arg name="virtual_ground" value="0.2"/>
+        <arg name="map_resolution" value="0.06"/>
+        <arg name="inflation_size" value="0.2399"/>
+        <arg name="init_x"     value="0"/>
+		<arg name="init_y"     value="0"/>
+		<arg name="init_z"     value="0"/>
+        <!-- 1: use 2D Nav Goal to select goal  -->
+        <!-- 2: use global waypoints below  -->
+        <arg name="flight_type" value="1" />
+        <!-- global waypoints -->
+        <!-- It generates a piecewise min-snap traj passing all waypoints -->
+        <arg name="point_num" value="1" />
+        <arg name="point0_x" value="1.0" />
+        <arg name="point0_y" value="0.0" />
+        <arg name="point0_z" value="0.0" />
+        <arg name="point1_x" value="0.0" />
+        <arg name="point1_y" value="0.0" />
+        <arg name="point1_z" value="0.0" />
+        <arg name="point2_x" value="0.0" />
+        <arg name="point2_y" value="0.0" />
+        <arg name="point2_z" value="0.0" />
+        <arg name="point3_x" value="0.0" />
+        <arg name="point3_y" value="0.0" />
+        <arg name="point3_z" value="0.0" />
+        <arg name="point4_x" value="0.0" />
+        <arg name="point4_y" value="0.0" />
+        <arg name="point4_z" value="0.0" />
+    </include>
+
+    <node pkg="diff_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen">
+        <remap from="position_cmd" to="/setpoints_cmd"/>
+        <remap from="~planning/trajectory" to="/drone_$(arg drone_id)_planning/trajectory"/>
+        <remap from="~planning/yaw" to="/drone_$(arg drone_id)_planning/yaw"/>
+        <remap from="~heartbeat" to="/drone_$(arg drone_id)_traj_server/heartbeat"/>
+        <param name="traj_server/time_forward" value="1.0" type="double"/>
+        <param name="traj_server/yaw_dot_max" value="3.14" type="double"/>
+        <param name="traj_server/yaw_dot_dot_max" value="15.71" type="double"/>
+    </node>
+
+</launch>
